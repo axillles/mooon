@@ -45,28 +45,29 @@ class MovieDetailScreen extends StatelessWidget {
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Padding(
-                          padding: EdgeInsets.all(18.0),
-                          child: Icon(
-                            Icons.play_arrow,
-                            color: Colors.white,
-                            size: 48,
+                  if (movie.galleryUrls.isNotEmpty)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.18),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(18.0),
+                            child: Icon(
+                              Icons.play_arrow,
+                              color: Colors.white,
+                              size: 48,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
               Padding(
@@ -90,7 +91,7 @@ class MovieDetailScreen extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            movie.type,
+                            movie.genres.join(' • '),
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 16,
@@ -159,8 +160,8 @@ class MovieDetailScreen extends StatelessWidget {
                         const SizedBox(width: 24),
                         Expanded(
                           child: _DetailInfoColumn(
-                            label: 'Длительность:',
-                            value: '${movie.durationMinutes} мин',
+                            label: 'Страна:',
+                            value: movie.country,
                           ),
                         ),
                       ],
@@ -179,7 +180,26 @@ class MovieDetailScreen extends StatelessWidget {
                         Expanded(
                           child: _DetailInfoColumn(
                             label: 'В ролях:',
-                            value: movie.actors.join(', '),
+                            value: movie.movieCast,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _DetailInfoColumn(
+                            label: 'Студия:',
+                            value: movie.studio,
+                          ),
+                        ),
+                        const SizedBox(width: 24),
+                        Expanded(
+                          child: _DetailInfoColumn(
+                            label: 'Технологии:',
+                            value: movie.technologies.join(', '),
                           ),
                         ),
                       ],
@@ -197,8 +217,35 @@ class MovieDetailScreen extends StatelessWidget {
                       movie.description,
                       style: const TextStyle(color: Colors.white70),
                     ),
-                    const SizedBox(height: 24),
-                    // Галерея кадров (если появится поле gallery, можно реализовать)
+                    if (movie.galleryUrls.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Кадры из фильма:',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 120,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: movie.galleryUrls.length,
+                          separatorBuilder:
+                              (_, __) => const SizedBox(width: 12),
+                          itemBuilder:
+                              (context, index) => ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: ImageService.getImage(
+                                  movie.galleryUrls[index],
+                                  width: 180,
+                                  height: 120,
+                                ),
+                              ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

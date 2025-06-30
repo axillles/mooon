@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/movie.dart';
+import '../models/filters.dart';
 import '../services/supabase_service.dart';
 import '../services/image_service.dart';
 import 'movie_detail_screen.dart';
 import 'filter_screen.dart';
+import 'search_screen.dart';
 
 class AfishaScreen extends StatefulWidget {
   const AfishaScreen({super.key});
@@ -28,15 +30,23 @@ class _AfishaScreenState extends State<AfishaScreen>
 
   List<Movie> _movies = [];
   bool _isLoading = true;
+  MovieFilters _currentFilters = MovieFilters.empty();
 
   // --- Добавлено для фильтрации по городу ---
-  String selectedCity = 'Минск';
   final List<String> cities = ['Минск', 'Гродно'];
   Map<int, String> cinemaIdToCity = {
     1: 'Минск',
     2: 'Минск',
     3: 'Гродно',
     4: 'Гродно',
+  };
+
+  // Маппинг ID кинотеатров к пространствам
+  Map<int, int> cinemaIdToSpace = {
+    1: 1, // mooon в Dana Mall
+    2: 2, // Silver Screen в Arena City
+    3: 3, // mooon в Palazzo
+    4: 1, // mooon в другом городе
   };
   // ---
 
@@ -70,14 +80,66 @@ class _AfishaScreenState extends State<AfishaScreen>
         3 => await SupabaseService.getUpcomingMovies(),
         _ => <Movie>[],
       };
-      // --- фильтрация по городу ---
+
+      // Применяем фильтры
       final filtered =
           movies.where((movie) {
-            return movie.cinemaIds.any(
-              (id) => cinemaIdToCity[id] == selectedCity,
-            );
+            // Фильтр по городу и кинотеатру
+            if (!movie.cinemaIds.any(
+              (id) =>
+                  cinemaIdToCity[id] == _currentFilters.selectedCity &&
+                  (_currentFilters.selectedSpaceIndex == 0 ||
+                      cinemaIdToSpace[id] ==
+                          _currentFilters.selectedSpaceIndex),
+            )) {
+              return false;
+            }
+
+            // Фильтр по залам
+            if (_currentFilters.selectedHalls.isNotEmpty &&
+                !movie.halls.any(
+                  (hall) => _currentFilters.selectedHalls.contains(hall),
+                )) {
+              return false;
+            }
+
+            // Фильтр по технологиям
+            if (_currentFilters.selectedTechnologies.isNotEmpty &&
+                !movie.technologies.any(
+                  (tech) => _currentFilters.selectedTechnologies.contains(tech),
+                )) {
+              return false;
+            }
+
+            // Фильтр по языкам
+            if (_currentFilters.selectedLanguages.isNotEmpty &&
+                !movie.languages.any(
+                  (lang) => _currentFilters.selectedLanguages.contains(lang),
+                )) {
+              return false;
+            }
+
+            // Фильтр по жанрам
+            if (_currentFilters.selectedGenres.isNotEmpty &&
+                !movie.genres.any(
+                  (genre) => _currentFilters.selectedGenres.contains(genre),
+                )) {
+              return false;
+            }
+
+            // Фильтр по времени
+            final showTimes = movie.showTimes.where((time) {
+              final hour = time.hour + time.minute / 60;
+              return hour >= _currentFilters.startTime &&
+                  hour <= _currentFilters.endTime;
+            });
+            if (showTimes.isEmpty) {
+              return false;
+            }
+
+            return true;
           }).toList();
-      // ---
+
       setState(() {
         _movies = filtered;
         _isLoading = false;
@@ -127,14 +189,17 @@ class _AfishaScreenState extends State<AfishaScreen>
                     mainAxisSize: MainAxisSize.min,
                     children:
                         cities.map((city) {
-                          final isSelected = city == selectedCity;
+                          final isSelected =
+                              city == _currentFilters.selectedCity;
                           return InkWell(
                             borderRadius: BorderRadius.circular(12),
                             onTap: () {
                               _removeCityMenu();
-                              if (city != selectedCity) {
+                              if (city != _currentFilters.selectedCity) {
                                 setState(() {
-                                  selectedCity = city;
+                                  _currentFilters = _currentFilters.copyWith(
+                                    selectedCity: city,
+                                  );
                                 });
                                 _loadMovies();
                               }
@@ -150,7 +215,7 @@ class _AfishaScreenState extends State<AfishaScreen>
                                     Icons.location_on,
                                     color:
                                         isSelected
-                                            ? Color(0xFF5B5BFF)
+                                            ? const Color(0xFF5B5BFF)
                                             : Colors.white70,
                                     size: 18,
                                   ),
@@ -161,7 +226,7 @@ class _AfishaScreenState extends State<AfishaScreen>
                                       style: TextStyle(
                                         color:
                                             isSelected
-                                                ? Color(0xFF5B5BFF)
+                                                ? const Color(0xFF5B5BFF)
                                                 : Colors.white,
                                         fontWeight:
                                             isSelected
@@ -205,7 +270,7 @@ class _AfishaScreenState extends State<AfishaScreen>
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Row(
                 children: [
-                  Text(
+                  const Text(
                     'mooon',
                     style: TextStyle(
                       fontSize: 28,
@@ -235,14 +300,14 @@ class _AfishaScreenState extends State<AfishaScreen>
                       ),
                       child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.location_on,
                             size: 16,
                             color: Colors.white70,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            selectedCity,
+                            _currentFilters.selectedCity,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -258,15 +323,30 @@ class _AfishaScreenState extends State<AfishaScreen>
                     ),
                   ),
                   const Spacer(),
-                  Icon(Icons.search, color: Colors.white, size: 26),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const SearchScreen()),
+                      );
+                    },
+                    child: const Icon(
+                      Icons.search,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
                   const SizedBox(width: 16),
-                  Icon(
+                  const Icon(
                     Icons.shopping_cart_outlined,
                     color: Colors.white,
                     size: 26,
                   ),
                   const SizedBox(width: 16),
-                  Icon(Icons.person_outline, color: Colors.white, size: 26),
+                  const Icon(
+                    Icons.person_outline,
+                    color: Colors.white,
+                    size: 26,
+                  ),
                 ],
               ),
             ),
@@ -361,11 +441,19 @@ class _AfishaScreenState extends State<AfishaScreen>
                 children: [
                   ElevatedButton.icon(
                     onPressed: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const FilterScreen()),
+                      final result = await Navigator.of(
+                        context,
+                      ).push<MovieFilters>(
+                        MaterialPageRoute(
+                          builder:
+                              (_) =>
+                                  FilterScreen(initialFilters: _currentFilters),
+                        ),
                       );
-                      // После возврата с фильтров можно обновить фильмы, если потребуется
-                      _loadMovies();
+                      if (result != null) {
+                        setState(() => _currentFilters = result);
+                        _loadMovies();
+                      }
                     },
                     icon: const Icon(
                       Icons.filter_list,

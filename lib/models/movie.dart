@@ -3,34 +3,40 @@ class Movie {
   final String title;
   final String description;
   final String imageUrl;
-  final String type;
+  final List<String> galleryUrls;
   final int ageRestriction;
   final int durationMinutes;
-  final DateTime startShowDate;
-  final DateTime endShowDate;
   final List<String> genres;
-  final String director;
-  final List<String> actors;
-  final double rating;
-  final String trailerUrl;
   final List<int> cinemaIds;
+  final List<String> halls;
+  final List<String> technologies;
+  final List<String> languages;
+  final List<DateTime> showTimes;
+  final double rating;
+  final String director;
+  final String movieCast;
+  final String country;
+  final String studio;
 
   Movie({
     required this.id,
     required this.title,
     required this.description,
     required this.imageUrl,
-    required this.type,
+    required this.galleryUrls,
     required this.ageRestriction,
     required this.durationMinutes,
-    required this.startShowDate,
-    required this.endShowDate,
     required this.genres,
-    required this.director,
-    required this.actors,
-    required this.rating,
-    required this.trailerUrl,
     required this.cinemaIds,
+    required this.halls,
+    required this.technologies,
+    required this.languages,
+    required this.showTimes,
+    required this.rating,
+    required this.director,
+    required this.movieCast,
+    required this.country,
+    required this.studio,
   });
 
   factory Movie.fromJson(Map<String, dynamic> json) {
@@ -39,17 +45,23 @@ class Movie {
       title: json['title'] as String,
       description: json['description'] as String,
       imageUrl: json['image_url'] as String,
-      type: json['type'] as String,
+      galleryUrls: (json['gallery_urls'] as List?)?.cast<String>() ?? [],
       ageRestriction: json['age_restriction'] as int,
       durationMinutes: json['duration_minutes'] as int,
-      startShowDate: DateTime.parse(json['start_show_date'] as String),
-      endShowDate: DateTime.parse(json['end_show_date'] as String),
-      genres: List<String>.from(json['genres'] as List),
-      director: json['director'] as String,
-      actors: List<String>.from(json['actors'] as List),
+      genres: (json['genres'] as List?)?.cast<String>() ?? [],
+      cinemaIds: (json['cinema_ids'] as List?)?.cast<int>() ?? [],
+      halls: (json['halls'] as List?)?.cast<String>() ?? [],
+      technologies: (json['technologies'] as List?)?.cast<String>() ?? [],
+      languages: (json['languages'] as List?)?.cast<String>() ?? [],
+      showTimes:
+          ((json['show_times'] as List?) ?? [])
+              .map((time) => DateTime.parse(time as String))
+              .toList(),
       rating: (json['rating'] as num).toDouble(),
-      trailerUrl: json['trailer_url'] as String,
-      cinemaIds: (json['cinema_ids'] as List).map((e) => e as int).toList(),
+      director: json['director'] as String,
+      movieCast: json['movie_cast'] as String,
+      country: json['country'] as String,
+      studio: json['studio'] as String,
     );
   }
 
@@ -59,17 +71,20 @@ class Movie {
       'title': title,
       'description': description,
       'image_url': imageUrl,
-      'type': type,
+      'gallery_urls': galleryUrls,
       'age_restriction': ageRestriction,
       'duration_minutes': durationMinutes,
-      'start_show_date': startShowDate.toIso8601String(),
-      'end_show_date': endShowDate.toIso8601String(),
       'genres': genres,
-      'director': director,
-      'actors': actors,
-      'rating': rating,
-      'trailer_url': trailerUrl,
       'cinema_ids': cinemaIds,
+      'halls': halls,
+      'technologies': technologies,
+      'languages': languages,
+      'show_times': showTimes.map((time) => time.toIso8601String()).toList(),
+      'rating': rating,
+      'director': director,
+      'movie_cast': movieCast,
+      'country': country,
+      'studio': studio,
     };
   }
 }

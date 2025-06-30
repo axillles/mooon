@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../models/filters.dart';
 
 class FilterScreen extends StatefulWidget {
-  const FilterScreen({Key? key}) : super(key: key);
+  final MovieFilters initialFilters;
+
+  const FilterScreen({Key? key, required this.initialFilters})
+    : super(key: key);
 
   @override
   State<FilterScreen> createState() => _FilterScreenState();
@@ -10,17 +14,16 @@ class FilterScreen extends StatefulWidget {
 
 class _FilterScreenState extends State<FilterScreen> {
   // Даты
-  final DateTime today = DateTime.now();
   late List<DateTime> weekDates;
-  int selectedDateIndex = 0;
+  late int selectedDateIndex;
 
   // Время
-  RangeValues timeRange = const RangeValues(0, 24);
+  late RangeValues timeRange;
 
   // Города и пространства
-  String selectedCity = 'Минск';
-  final List<String> cities = ['Минск', 'Гомель', 'Брест'];
-  int selectedSpaceIndex = 0;
+  late String selectedCity;
+  final List<String> cities = ['Минск', 'Гродно'];
+  late int selectedSpaceIndex;
   final List<Map<String, String>> spaces = [
     {
       'name': 'mooon в ТРЦ "Dana Mall"',
@@ -65,15 +68,39 @@ class _FilterScreenState extends State<FilterScreen> {
     'опера',
     'музыка',
   ];
-  final Set<String> selectedHalls = {};
-  final Set<String> selectedTechnologies = {};
-  final Set<String> selectedLanguages = {};
-  final Set<String> selectedGenres = {};
+  late Set<String> selectedHalls;
+  late Set<String> selectedTechnologies;
+  late Set<String> selectedLanguages;
+  late Set<String> selectedGenres;
 
   @override
   void initState() {
     super.initState();
+    final today = DateTime.now();
     weekDates = List.generate(8, (i) => today.add(Duration(days: i)));
+
+    // Инициализация из начальных фильтров
+    selectedDateIndex = weekDates.indexWhere(
+      (date) => _isSameDay(date, widget.initialFilters.selectedDate),
+    );
+    if (selectedDateIndex == -1) selectedDateIndex = 0;
+
+    timeRange = RangeValues(
+      widget.initialFilters.startTime,
+      widget.initialFilters.endTime,
+    );
+    selectedCity = widget.initialFilters.selectedCity;
+    selectedSpaceIndex = widget.initialFilters.selectedSpaceIndex;
+    selectedHalls = Set.from(widget.initialFilters.selectedHalls);
+    selectedTechnologies = Set.from(widget.initialFilters.selectedTechnologies);
+    selectedLanguages = Set.from(widget.initialFilters.selectedLanguages);
+    selectedGenres = Set.from(widget.initialFilters.selectedGenres);
+  }
+
+  bool _isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
   }
 
   @override
@@ -196,8 +223,12 @@ class _FilterScreenState extends State<FilterScreen> {
                 ),
               ),
               Text(
-                'Выбранный период: ${_formatTime(timeRange.start)} - ${_formatTime(timeRange.end)}',
-                style: const TextStyle(color: Colors.white54),
+                'Выбранный период:  ${_formatTime(timeRange.start)} – ${_formatTime(timeRange.end)}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                ),
               ),
             ],
           ),
@@ -215,21 +246,23 @@ class _FilterScreenState extends State<FilterScreen> {
             child: RangeSlider(
               min: 0,
               max: 24,
-              divisions: 24,
+              divisions: 144,
               values: timeRange,
               onChanged: (values) => setState(() => timeRange = values),
-              labels: RangeLabels(
-                _formatTime(timeRange.start),
-                _formatTime(timeRange.end),
-              ),
             ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text('00:00', style: TextStyle(color: Colors.white54)),
-              Text('24:00', style: TextStyle(color: Colors.white54)),
-            ],
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0, left: 2, right: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(13, (i) {
+                int hour = i * 2;
+                return Text(
+                  hour.toString().padLeft(2, '0'),
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                );
+              }),
+            ),
           ),
           const SizedBox(height: 24),
           // Пространства
@@ -252,7 +285,7 @@ class _FilterScreenState extends State<FilterScreen> {
                 return GestureDetector(
                   onTap: () => setState(() => selectedSpaceIndex = i),
                   child: Container(
-                    width: 240,
+                    width: 290,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color:
@@ -422,29 +455,75 @@ class _FilterScreenState extends State<FilterScreen> {
                     )
                     .toList(),
           ),
-          const SizedBox(height: 32),
-          // Кнопка применить
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5B5BFF),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          child: Row(
+            children: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF23232A),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 18,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                onPressed: () {
+                  setState(() {
+                    selectedDateIndex = 0;
+                    timeRange = const RangeValues(0, 24);
+                    selectedCity = cities.first;
+                    selectedSpaceIndex = 0;
+                    selectedHalls.clear();
+                    selectedTechnologies.clear();
+                    selectedLanguages.clear();
+                    selectedGenres.clear();
+                  });
+                },
+                child: const Text(
+                  'Сбросить',
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
                 ),
               ),
-              onPressed: () {
-                // TODO: применить фильтры
-                Navigator.of(context).pop();
-              },
-              child: const Text(
-                'Применить фильтры',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5B5BFF),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    final filters = MovieFilters(
+                      selectedDate: weekDates[selectedDateIndex],
+                      startTime: timeRange.start,
+                      endTime: timeRange.end,
+                      selectedCity: selectedCity,
+                      selectedSpaceIndex: selectedSpaceIndex,
+                      selectedHalls: selectedHalls,
+                      selectedTechnologies: selectedTechnologies,
+                      selectedLanguages: selectedLanguages,
+                      selectedGenres: selectedGenres,
+                    );
+                    Navigator.of(context).pop(filters);
+                  },
+                  child: const Text(
+                    'Применить фильтры',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

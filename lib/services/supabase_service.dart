@@ -15,39 +15,106 @@ class SupabaseService {
 
   // Получение фильмов по дате показа
   static Future<List<Movie>> getMoviesByDate(DateTime date) async {
-    final response = await supabase
-        .from('movies')
-        .select()
-        .lte('start_show_date', date.toIso8601String())
-        .gte('end_show_date', date.toIso8601String());
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    return (response as List).map((movie) => Movie.fromJson(movie)).toList();
+    try {
+      print('Fetching movies for date: ${startOfDay.toIso8601String()}');
+
+      final response = await supabase
+          .from('movies')
+          .select()
+          .neq(
+            'show_times',
+            '{}',
+          ); // Получаем все фильмы, у которых есть сеансы
+
+      print('Got response: $response');
+
+      final movies =
+          (response as List).map((movie) => Movie.fromJson(movie)).toList();
+
+      // Фильтруем фильмы с сеансами на указанную дату
+      return movies.where((movie) {
+        return movie.showTimes.any((showTime) {
+          final showDate = DateTime(
+            showTime.year,
+            showTime.month,
+            showTime.day,
+          );
+          return showDate.isAtSameMomentAs(startOfDay);
+        });
+      }).toList();
+    } catch (e, stackTrace) {
+      print('Error fetching movies: $e');
+      print('Stack trace: $stackTrace');
+      return [];
+    }
   }
 
   // Получение фильмов на неделю
   static Future<List<Movie>> getMoviesForWeek() async {
     final now = DateTime.now();
     final weekLater = now.add(const Duration(days: 7));
+    final dates = List.generate(
+      7,
+      (i) => now.add(Duration(days: i)).toIso8601String(),
+    );
 
-    final response = await supabase
-        .from('movies')
-        .select()
-        .gte('start_show_date', now.toIso8601String())
-        .lte('start_show_date', weekLater.toIso8601String());
+    try {
+      print(
+        'Fetching movies for week from ${now.toIso8601String()} to ${weekLater.toIso8601String()}',
+      );
 
-    return (response as List).map((movie) => Movie.fromJson(movie)).toList();
+      final response = await supabase
+          .from('movies')
+          .select()
+          .neq('show_times', '{}');
+
+      print('Got response: $response');
+
+      final movies =
+          (response as List).map((movie) => Movie.fromJson(movie)).toList();
+
+      // Фильтруем фильмы с сеансами на ближайшую неделю
+      return movies.where((movie) {
+        return movie.showTimes.any((showTime) {
+          return showTime.isAfter(now) && showTime.isBefore(weekLater);
+        });
+      }).toList();
+    } catch (e, stackTrace) {
+      print('Error fetching movies: $e');
+      print('Stack trace: $stackTrace');
+      return [];
+    }
   }
 
   // Получение предстоящих фильмов
   static Future<List<Movie>> getUpcomingMovies() async {
     final now = DateTime.now();
+    final weekLater = now.add(const Duration(days: 7));
 
-    final response = await supabase
-        .from('movies')
-        .select()
-        .gt('start_show_date', now.toIso8601String())
-        .order('start_show_date');
+    try {
+      print('Fetching upcoming movies after ${weekLater.toIso8601String()}');
 
-    return (response as List).map((movie) => Movie.fromJson(movie)).toList();
+      final response = await supabase
+          .from('movies')
+          .select()
+          .neq('show_times', '{}');
+
+      print('Got response: $response');
+
+      final movies =
+          (response as List).map((movie) => Movie.fromJson(movie)).toList();
+
+      // Фильтруем фильмы, которые начнут показывать после следующей недели
+      return movies.where((movie) {
+        return movie.showTimes.any((showTime) => showTime.isAfter(weekLater));
+      }).toList();
+    } catch (e, stackTrace) {
+      print('Error fetching movies: $e');
+      print('Stack trace: $stackTrace');
+      return [];
+    }
   }
 }

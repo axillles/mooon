@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../models/movie.dart';
+import '../services/supabase_service.dart';
+import 'movie_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({Key? key}) : super(key: key);
@@ -10,6 +13,64 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   String _query = '';
+  List<Movie> _allMovies = [];
+  List<Movie> _filteredMovies = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMovies();
+  }
+
+  Future<void> _loadMovies() async {
+    setState(() => _isLoading = true);
+    try {
+      final movies = await SupabaseService.getMoviesForWeek();
+      setState(() {
+        _allMovies = movies;
+        _filteredMovies = [];
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _allMovies = [];
+        _filteredMovies = [];
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _onQueryChanged(String value) {
+    setState(() {
+      _query = value;
+      final trimmed = _query.trim().toLowerCase();
+      if (trimmed.isEmpty) {
+        _filteredMovies = [];
+      } else {
+        // Проверяем, совпадает ли запрос с каким-либо жанром
+        final allGenres = _allMovies.expand((m) => m.genres).toSet();
+        final genreMatch = allGenres.firstWhere(
+          (g) => g.toLowerCase() == trimmed,
+          orElse: () => '',
+        );
+        if (genreMatch.isNotEmpty) {
+          _filteredMovies =
+              _allMovies
+                  .where(
+                    (movie) =>
+                        movie.genres.any((g) => g.toLowerCase() == trimmed),
+                  )
+                  .toList();
+        } else {
+          _filteredMovies =
+              _allMovies
+                  .where((movie) => movie.title.toLowerCase().contains(trimmed))
+                  .toList();
+        }
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -82,11 +143,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         size: 28,
                       ),
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        _query = value;
-                      });
-                    },
+                    onChanged: _onQueryChanged,
                     autofocus: true,
                   ),
                 ),
@@ -104,18 +161,71 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
                 const SizedBox(height: 16),
                 Expanded(
-                  child: Center(
-                    child:
-                        _query.isEmpty
-                            ? const SizedBox.shrink()
-                            : const Text(
-                              'Тут будут результаты поиска',
+                  child:
+                      _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _query.isEmpty
+                          ? const SizedBox.shrink()
+                          : _filteredMovies.isEmpty
+                          ? const Center(
+                            child: Text(
+                              'Ничего не найдено',
                               style: TextStyle(
-                                color: Colors.white54,
-                                fontSize: 18,
+                                color: Colors.white38,
+                                fontSize: 20,
                               ),
                             ),
-                  ),
+                          )
+                          : ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            itemCount: _filteredMovies.length,
+                            itemBuilder: (context, index) {
+                              final movie = _filteredMovies[index];
+                              return Card(
+                                color: const Color(0xFF23232A),
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                child: ListTile(
+                                  leading:
+                                      movie.imageUrl.isNotEmpty
+                                          ? Image.network(
+                                            movie.imageUrl,
+                                            width: 56,
+                                            height: 80,
+                                            fit: BoxFit.cover,
+                                          )
+                                          : const SizedBox(
+                                            width: 56,
+                                            height: 80,
+                                          ),
+                                  title: Text(
+                                    movie.title,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    movie.genres.join(', '),
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder:
+                                            (_) =>
+                                                MovieDetailScreen(movie: movie),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
                 ),
               ],
             ),

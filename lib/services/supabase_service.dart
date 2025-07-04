@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/movie.dart';
+import '../models/filters.dart';
 
 class SupabaseService {
   static final supabase = Supabase.instance.client;
@@ -114,6 +115,41 @@ class SupabaseService {
     } catch (e, stackTrace) {
       print('Error fetching movies: $e');
       print('Stack trace: $stackTrace');
+      return [];
+    }
+  }
+
+  // Получение залов по cinema_id
+  static Future<List<Hall>> getHallsByCinema(int cinemaId) async {
+    try {
+      final response = await supabase
+          .from('halls')
+          .select()
+          .eq('cinema_id', cinemaId);
+      return (response as List).map((h) => Hall.fromJson(h)).toList();
+    } catch (e) {
+      print('Ошибка при получении залов: $e');
+      return [];
+    }
+  }
+
+  // Получение сеансов по фильму и дате
+  static Future<List<Screening>> getScreenings({
+    required int movieId,
+    required DateTime date,
+  }) async {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+    try {
+      final response = await supabase
+          .from('screenings')
+          .select()
+          .eq('movie_id', movieId)
+          .gte('start_time', startOfDay.toIso8601String())
+          .lt('start_time', endOfDay.toIso8601String());
+      return (response as List).map((s) => Screening.fromJson(s)).toList();
+    } catch (e) {
+      print('Ошибка при получении сеансов: $e');
       return [];
     }
   }

@@ -61,3 +61,58 @@ class MovieFilters {
     );
   }
 }
+
+class Hall {
+  final int id;
+  final int cinemaId;
+  final String name;
+  final int? capacity;
+  final String? technology;
+
+  Hall({
+    required this.id,
+    required this.cinemaId,
+    required this.name,
+    this.capacity,
+    this.technology,
+  });
+
+  factory Hall.fromJson(Map<String, dynamic> json) {
+    return Hall(
+      id: json['id'] as int,
+      cinemaId: json['cinema_id'] as int,
+      name: json['name'] as String,
+      capacity: json['capacity'] as int?,
+      technology: json['technology'] as String?,
+    );
+  }
+}
+
+class Screening {
+  final int id;
+  final int movieId;
+  final int hallId;
+  final DateTime startTime;
+  final double price;
+  final String? format;
+
+  Screening({
+    required this.id,
+    required this.movieId,
+    required this.hallId,
+    required this.startTime,
+    required this.price,
+    this.format,
+  });
+
+  factory Screening.fromJson(Map<String, dynamic> json) {
+    return Screening(
+      id: json['id'] as int,
+      movieId: json['movie_id'] as int,
+      hallId: json['hall_id'] as int,
+      startTime: DateTime.parse(json['start_time'] as String),
+      price: (json['price'] as num).toDouble(),
+      format: json['format'] as String?,
+    );
+  }
+}

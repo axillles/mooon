@@ -39,6 +39,7 @@ dependencies:
   supabase_flutter: ^2.3.4
   intl: ^0.19.0
   cached_network_image: ^3.3.1
+  flutter_svg: ^2.0.10
 
 dev_dependencies:
   flutter_test:
@@ -92,3 +93,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+  assets:
+    - assets/images/loveseat.svg
+    - assets/images/single.svg
+    - assets/images/sofa.svg
+    - assets/images/blur.png

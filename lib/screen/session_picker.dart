@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/movie.dart';
 import '../models/filters.dart';
 import '../services/supabase_service.dart';
+import 'booking_screen.dart';
 
 class SessionPicker extends StatefulWidget {
   final Movie movie;
@@ -381,11 +382,31 @@ class _SessionPickerState extends State<SessionPicker> {
                   itemBuilder: (context, i) {
                     final screening = entry.value[i];
                     final hall = halls[screening.hallId];
-                    return _SessionCard(
-                      time: _formatTime(screening.startTime),
-                      hall: hall?.name ?? '',
-                      tech: hall?.technology ?? '',
-                      lang: screening.format ?? '',
+                    return GestureDetector(
+                      onTap: () {
+                        final cinema = cinemas[hall?.cinemaId];
+                        if (cinema != null && hall != null) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => BookingScreen(
+                                    movie: widget.movie,
+                                    cinemaName: cinema['name'] ?? '',
+                                    cinemaAddress: cinema['address'] ?? '',
+                                    hallName: hall.name,
+                                    date: screening.startTime,
+                                    time: _formatTime(screening.startTime),
+                                  ),
+                            ),
+                          );
+                        }
+                      },
+                      child: _SessionCard(
+                        time: _formatTime(screening.startTime),
+                        hall: hall?.name ?? '',
+                        tech: hall?.technology ?? '',
+                        lang: screening.format ?? '',
+                      ),
                     );
                   },
                 ),

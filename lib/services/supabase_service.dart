@@ -153,4 +153,29 @@ class SupabaseService {
       return [];
     }
   }
+
+  // Получение мест по hall_id
+  static Future<List<Seat>> getSeatsByHall(int hallId) async {
+    try {
+      final response = await supabase
+          .from('seats')
+          .select()
+          .eq('hall_id', hallId);
+      return (response as List).map((s) => Seat.fromJson(s)).toList();
+    } catch (e) {
+      print('Ошибка при получении мест: $e');
+      return [];
+    }
+  }
+
+  // Получение всех типов кресел
+  static Future<List<SeatType>> getSeatTypes() async {
+    try {
+      final response = await supabase.from('seat_types').select();
+      return (response as List).map((t) => SeatType.fromJson(t)).toList();
+    } catch (e) {
+      print('Ошибка при получении типов кресел: $e');
+      return [];
+    }
+  }
 }

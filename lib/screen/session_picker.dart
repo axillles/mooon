@@ -396,6 +396,7 @@ class _SessionPickerState extends State<SessionPicker> {
                                     hallName: hall.name,
                                     date: screening.startTime,
                                     time: _formatTime(screening.startTime),
+                                    hallId: hall.id,
                                   ),
                             ),
                           );

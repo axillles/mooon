@@ -116,3 +116,54 @@ class Screening {
     );
   }
 }
+
+class Seat {
+  final int id;
+  final int hallId;
+  final String rowNumber;
+  final int seatNumber;
+  final int seatTypeId;
+  final double x;
+  final double y;
+  final double angle;
+
+  Seat({
+    required this.id,
+    required this.hallId,
+    required this.rowNumber,
+    required this.seatNumber,
+    required this.seatTypeId,
+    required this.x,
+    required this.y,
+    required this.angle,
+  });
+
+  factory Seat.fromJson(Map<String, dynamic> json) {
+    return Seat(
+      id: json['id'] as int,
+      hallId: json['hall_id'] as int,
+      rowNumber: json['row_number'].toString(),
+      seatNumber: json['seat_number'] as int,
+      seatTypeId: json['seat_type_id'] as int,
+      x: (json['x'] as num).toDouble(),
+      y: (json['y'] as num).toDouble(),
+      angle: (json['angle'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
+class SeatType {
+  final int id;
+  final String name;
+  final String code;
+
+  SeatType({required this.id, required this.name, required this.code});
+
+  factory SeatType.fromJson(Map<String, dynamic> json) {
+    return SeatType(
+      id: json['id'] as int,
+      name: json['name'] as String,
+      code: json['code'] as String,
+    );
+  }
+}

@@ -336,6 +336,22 @@ class _BookingScreenState extends State<BookingScreen> {
                           ),
                 ),
               ),
+              // Сноска "Статус мест"
+              if (!isLoading && seats.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    bottom: 18,
+                  ),
+                  child: _SeatStatusLegend(),
+                ),
+              // Сноска "Типы мест"
+              if (!isLoading && seats.isNotEmpty && seatTypes.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  child: _SeatTypesLegend(seats: seats, seatTypes: seatTypes),
+                ),
             ],
           ),
         ),
@@ -532,7 +548,8 @@ class HallSeatMap extends StatelessWidget {
             // Кресла и подписи рядов
             ...rows.entries.mapIndexed((rowIdx, entry) {
               final row = entry.key;
-              final seatsInRow = entry.value;
+              final seatsInRow = [...entry.value]
+                ..sort((a, b) => a.seatNumber.compareTo(b.seatNumber));
               double xCursor = 0;
               List<Widget> seatWidgets = [];
               for (int i = 0; i < seatsInRow.length; i++) {
@@ -698,5 +715,272 @@ extension _MapIndexed<E> on Iterable<E> {
   Iterable<T> mapIndexed<T>(T Function(int, E) f) {
     var i = 0;
     return map((e) => f(i++, e));
+  }
+}
+
+class _SeatTypesLegend extends StatelessWidget {
+  final List<Seat> seats;
+  final List<SeatType> seatTypes;
+  const _SeatTypesLegend({required this.seats, required this.seatTypes});
+
+  @override
+  Widget build(BuildContext context) {
+    final usedTypeIds = seats.map((s) => s.seatTypeId).toSet();
+    final usedTypes =
+        seatTypes.where((t) => usedTypeIds.contains(t.id)).toList();
+    usedTypes.sort((a, b) => a.name.compareTo(b.name));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 18, top: 8),
+          child: Text(
+            'Типы мест',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 32,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF19191C), Color(0xFF111114)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            children: [
+              for (int i = 0; i < usedTypes.length; i++) ...[
+                if (i > 0)
+                  const Divider(
+                    color: Colors.white12,
+                    height: 1,
+                    thickness: 1,
+                    indent: 24,
+                    endIndent: 24,
+                  ),
+                _SeatTypeRow(type: usedTypes[i]),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SeatTypeRow extends StatefulWidget {
+  final SeatType type;
+  const _SeatTypeRow({required this.type});
+
+  @override
+  State<_SeatTypeRow> createState() => _SeatTypeRowState();
+}
+
+class _SeatTypeRowState extends State<_SeatTypeRow> {
+  bool expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = widget.type;
+    String asset;
+    // Цвет иконки зависит от expanded
+    Color iconColor = expanded ? Colors.white : const Color(0xFF6B7AFF);
+    switch (type.code) {
+      case 'loveseat':
+        asset = 'assets/images/loveseat.svg';
+        break;
+      case 'sofa':
+        asset = 'assets/images/sofa.svg';
+        break;
+      case 'recliner':
+        asset = 'assets/images/recliner.svg';
+        break;
+      case 'loveseatrecliner':
+      case 'love_seat_recliner':
+        asset = 'assets/images/loveSeatRecliner.svg';
+        break;
+      default:
+        asset = 'assets/images/single.svg';
+    }
+    String price = '-';
+    if (type.price != null) {
+      price = type.price!.toStringAsFixed(2).replaceAll('.', ',') + ' BYN';
+    }
+    // Градиент для карточки и описания
+    final BoxDecoration cardDecoration = BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF19191C), Color(0xFF111114)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius:
+          expanded
+              ? const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+              )
+              : BorderRadius.circular(18),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => setState(() => expanded = !expanded),
+          child: Container(
+            height: 72,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            decoration: cardDecoration,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SvgPicture.asset(
+                  asset,
+                  color: iconColor,
+                  width: 40,
+                  height: 40,
+                ),
+                const SizedBox(width: 22),
+                Expanded(
+                  child: Text(
+                    type.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  price,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 18),
+                AnimatedRotation(
+                  turns: expanded ? 0.5 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      border: Border.all(color: Colors.white24, width: 2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      expanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild:
+              type.description != null && type.description!.isNotEmpty
+                  ? Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 8,
+                    ),
+                    padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF19191C), Color(0xFF111114)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(18),
+                        bottomRight: Radius.circular(18),
+                      ),
+                    ),
+                    child: Text(
+                      type.description!,
+                      style: const TextStyle(
+                        color: Color(0xFFCCCCCC),
+                        fontSize: 18,
+                        height: 1.5,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  )
+                  : const SizedBox.shrink(),
+          crossFadeState:
+              expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 220),
+        ),
+      ],
+    );
+  }
+}
+
+// Легенда "Свободно/Занято"
+class _SeatStatusLegend extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: [
+        _StatusBox(color: Color(0xFF6B7AFF), label: 'Свободно'),
+        const SizedBox(width: 18),
+        _StatusBox(color: Color(0xFF44464F), label: 'Занято'),
+      ],
+    );
+  }
+}
+
+class _StatusBox extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _StatusBox({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
   }
 }

@@ -156,14 +156,24 @@ class SeatType {
   final int id;
   final String name;
   final String code;
+  final double? price;
+  final String? description;
 
-  SeatType({required this.id, required this.name, required this.code});
+  SeatType({
+    required this.id,
+    required this.name,
+    required this.code,
+    this.price,
+    this.description,
+  });
 
   factory SeatType.fromJson(Map<String, dynamic> json) {
     return SeatType(
       id: json['id'] as int,
       name: json['name'] as String,
       code: json['code'] as String,
+      price: json['price'] != null ? (json['price'] as num).toDouble() : null,
+      description: json['description'] as String?,
     );
   }
 }

@@ -72,6 +72,12 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
+  String formatDuration(int durationMinutes) {
+    int hours = durationMinutes ~/ 60;
+    int minutes = durationMinutes % 60;
+    return minutes == 0 ? '$hours ч' : '$hours ч $minutes мин';
+  }
+
   @override
   void dispose() {
     _controller.dispose();

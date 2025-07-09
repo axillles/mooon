@@ -12,11 +12,9 @@ class Movie {
   final List<String> technologies;
   final List<String> languages;
   final List<DateTime> showTimes;
-  final double rating;
   final String director;
   final String movieCast;
-  final String country;
-  final String studio;
+  final String trailerUrl;
 
   Movie({
     required this.id,
@@ -32,11 +30,9 @@ class Movie {
     required this.technologies,
     required this.languages,
     required this.showTimes,
-    required this.rating,
     required this.director,
     required this.movieCast,
-    required this.country,
-    required this.studio,
+    required this.trailerUrl,
   });
 
   factory Movie.fromJson(Map<String, dynamic> json) {
@@ -57,11 +53,9 @@ class Movie {
           ((json['show_times'] as List?) ?? [])
               .map((time) => DateTime.parse(time as String))
               .toList(),
-      rating: (json['rating'] as num).toDouble(),
       director: json['director'] as String,
       movieCast: json['movie_cast'] as String,
-      country: json['country'] as String,
-      studio: json['studio'] as String,
+      trailerUrl: json['trailer_url'] as String? ?? '',
     );
   }
 
@@ -80,11 +74,9 @@ class Movie {
       'technologies': technologies,
       'languages': languages,
       'show_times': showTimes.map((time) => time.toIso8601String()).toList(),
-      'rating': rating,
       'director': director,
       'movie_cast': movieCast,
-      'country': country,
-      'studio': studio,
+      'trailer_url': trailerUrl,
     };
   }
 }

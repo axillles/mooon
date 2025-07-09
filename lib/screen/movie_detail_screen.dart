@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/movie.dart';
 import '../services/image_service.dart';
 import 'session_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MovieDetailScreen extends StatelessWidget {
   final Movie movie;
@@ -106,43 +107,124 @@ class MovieDetailScreen extends StatelessWidget {
                           size: 18,
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          '${movie.durationMinutes} мин',
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 15,
-                          ),
+                        Builder(
+                          builder: (context) {
+                            int hours = movie.durationMinutes ~/ 60;
+                            int minutes = movie.durationMinutes % 60;
+                            String duration =
+                                minutes == 0
+                                    ? '$hours ч'
+                                    : '$hours ч $minutes мин';
+                            return Text(
+                              duration,
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 15,
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '${movie.ageRestriction}+',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        // Возраст
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.person,
+                                    color: Colors.white54,
+                                    size: 28,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${movie.ageRestriction}+',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              const Text(
+                                'Возраст зрителей',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Icon(Icons.star, color: Colors.amber[400], size: 20),
-                        const SizedBox(width: 4),
-                        Text(
-                          movie.rating.toStringAsFixed(1),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
+                        // Блок "В кино с ... по ..."
+                        Expanded(
+                          child: Builder(
+                            builder: (context) {
+                              String start = '';
+                              String end = '';
+                              if (movie.showTimes.isNotEmpty) {
+                                final sorted = [...movie.showTimes]..sort();
+                                final startDate = sorted.first;
+                                final endDate = sorted.last;
+                                start =
+                                    '${startDate.day} ${_monthName(startDate.month)}';
+                                end =
+                                    '${endDate.day} ${_monthName(endDate.month)}';
+                              }
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.videocam,
+                                        color: Colors.white54,
+                                        size: 28,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          start.isNotEmpty
+                                              ? 'В кино с $start'
+                                              : '',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                          ),
+                                          softWrap: true,
+                                          maxLines: 2,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (end.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 36),
+                                      child: Text(
+                                        'по $end',
+                                        style: const TextStyle(
+                                          color: Colors.white54,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                        softWrap: true,
+                                        maxLines: 2,
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -159,12 +241,6 @@ class MovieDetailScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 24),
-                        Expanded(
-                          child: _DetailInfoColumn(
-                            label: 'Страна:',
-                            value: movie.country,
-                          ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -190,12 +266,6 @@ class MovieDetailScreen extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: _DetailInfoColumn(
-                            label: 'Студия:',
-                            value: movie.studio,
-                          ),
-                        ),
                         const SizedBox(width: 24),
                         Expanded(
                           child: _DetailInfoColumn(
@@ -211,13 +281,19 @@ class MovieDetailScreen extends StatelessWidget {
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                        letterSpacing: 0.1,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       movie.description,
-                      style: const TextStyle(color: Colors.white70),
+                      style: const TextStyle(
+                        color: Color(0xFFCCCCCC),
+                        fontSize: 16,
+                      ),
                     ),
+
                     if (movie.galleryUrls.isNotEmpty) ...[
                       const SizedBox(height: 24),
                       const Text(
@@ -225,6 +301,8 @@ class MovieDetailScreen extends StatelessWidget {
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                          letterSpacing: 0.1,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -303,19 +381,41 @@ class _DetailInfoColumn extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            color: Colors.white70,
-            fontWeight: FontWeight.w500,
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            letterSpacing: 0.1,
           ),
         ),
         const SizedBox(height: 2),
         Text(
           value,
           style: const TextStyle(
-            color: Colors.white,
+            color: Color(0xFFCCCCCC),
             fontWeight: FontWeight.w400,
+            fontSize: 16,
           ),
         ),
       ],
     );
   }
+}
+
+String _monthName(int month) {
+  const months = [
+    '',
+    'января',
+    'февраля',
+    'марта',
+    'апреля',
+    'мая',
+    'июня',
+    'июля',
+    'августа',
+    'сентября',
+    'октября',
+    'ноября',
+    'декабря',
+  ];
+  return months[month];
 }

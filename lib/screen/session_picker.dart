@@ -201,7 +201,7 @@ class _SessionPickerState extends State<SessionPicker> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${widget.movie.ageRestriction}+  ${widget.movie.genres.join(', ')}  •  ${widget.movie.durationMinutes ~/ 60} ч ${widget.movie.durationMinutes % 60} мин',
+                            '${widget.movie.ageRestriction}+  ${widget.movie.genres.join(', ')}  •  ${formatDuration(widget.movie.durationMinutes)}',
                             style: const TextStyle(
                               color: Colors.white54,
                               fontSize: 14,
@@ -423,6 +423,12 @@ class _SessionPickerState extends State<SessionPicker> {
   String _formatTime(DateTime dt) {
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
+}
+
+String formatDuration(int durationMinutes) {
+  int hours = durationMinutes ~/ 60;
+  int minutes = durationMinutes % 60;
+  return minutes == 0 ? '$hours ч' : '$hours ч $minutes мин';
 }
 
 class _SessionCard extends StatelessWidget {

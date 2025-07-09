@@ -64,12 +64,18 @@ class _BookingScreenState extends State<BookingScreen> {
     });
   }
 
+  // Универсальная функция для форматирования времени (часы и минуты)
+  String formatDuration(int durationMinutes) {
+    int hours = durationMinutes ~/ 60;
+    int minutes = durationMinutes % 60;
+    return minutes == 0 ? '$hours ч' : '$hours ч $minutes мин';
+  }
+
   @override
   Widget build(BuildContext context) {
     final genres =
         widget.movie.genres.isNotEmpty ? widget.movie.genres.first : '';
-    final duration =
-        '${widget.movie.durationMinutes ~/ 60} ч ${widget.movie.durationMinutes % 60} мин';
+    final duration = formatDuration(widget.movie.durationMinutes);
     return Scaffold(
       backgroundColor: const Color(0xFF111114),
       body: SafeArea(
@@ -416,6 +422,7 @@ class _InfoCard extends StatelessWidget {
         ],
       ),
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+      height: 110,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -434,14 +441,19 @@ class _InfoCard extends StatelessWidget {
             child: Container(height: 1.2, width: 60, color: Colors.white),
           ),
           const SizedBox(height: 10),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-              letterSpacing: 1.1,
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                  letterSpacing: 1.1,
+                ),
+              ),
             ),
           ),
         ],
@@ -844,8 +856,8 @@ class _SeatTypeRowState extends State<_SeatTypeRow> {
                 SvgPicture.asset(
                   asset,
                   color: iconColor,
-                  width: 40,
-                  height: 40,
+                  width: 32,
+                  height: 32,
                 ),
                 const SizedBox(width: 22),
                 Expanded(
@@ -866,7 +878,7 @@ class _SeatTypeRowState extends State<_SeatTypeRow> {
                   price,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 22,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),

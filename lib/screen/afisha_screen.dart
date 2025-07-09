@@ -8,6 +8,13 @@ import 'movie_detail_screen.dart';
 import 'filter_screen.dart';
 import 'search_screen.dart';
 
+// Универсальная функция для форматирования времени (часы и минуты)
+String formatDuration(int durationMinutes) {
+  int hours = durationMinutes ~/ 60;
+  int minutes = durationMinutes % 60;
+  return minutes == 0 ? '$hours ч' : '$hours ч $minutes мин';
+}
+
 class AfishaScreen extends StatefulWidget {
   const AfishaScreen({super.key});
 
@@ -491,7 +498,8 @@ class _AfishaScreenState extends State<AfishaScreen>
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: 2,
-                              childAspectRatio: 0.7,
+                              childAspectRatio:
+                                  0.6, //увеличение/уменьшение карточки афиши
                               crossAxisSpacing: 16,
                               mainAxisSpacing: 16,
                             ),
@@ -518,49 +526,166 @@ class _MovieCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => MovieDetailScreen(movie: movie)),
           );
         },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            Expanded(
-              child: ImageService.getImage(
-                movie.imageUrl,
-                width: double.infinity,
-                height: double.infinity,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Постер
+            Container(
+              height: 440,
+              width: double.infinity,
+              child: Stack(
                 children: [
-                  Text(
-                    movie.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  ImageService.getImage(
+                    movie.imageUrl,
+                    width: double.infinity,
+                    height: 440,
+                  ),
+                  // Градиент-переход внизу
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 110,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Color(0xFF111114)],
+                        ),
+                      ),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${movie.ageRestriction}+ • ${movie.durationMinutes} мин',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    movie.genres.join(', '),
-                    style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
+              ),
+            ),
+            // Верхний блок: возраст и язык
+            Positioned(
+              top: 18,
+              left: 14,
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF23232A).withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${movie.ageRestriction}+',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                  if (movie.languages.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF23232A).withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        movie.languages.first,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Нижний блок: название, жанр, время
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withOpacity(0.92),
+                      Colors.black.withOpacity(0.65),
+                      Colors.transparent,
+                    ],
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(18),
+                    bottomRight: Radius.circular(18),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      movie.title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        height: 1.1,
+                        letterSpacing: 0.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      movie.genres.join(', '),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w500,
+                        height: 1.1,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time_filled,
+                          color: Colors.white54,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          formatDuration(movie.durationMinutes),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

@@ -472,6 +472,8 @@ class _SessionPickerState extends State<SessionPicker> {
                                                 screening.startTime,
                                               ),
                                               hallId: hall.id,
+                                              screeningId:
+                                                  screening.id, // <-- добавлено
                                             ),
                                       ),
                                     );

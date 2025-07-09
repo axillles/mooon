@@ -6,6 +6,7 @@ import '../models/filters.dart';
 import '../services/supabase_service.dart';
 import 'dart:math';
 import '../main.dart'; // Для доступа к bookingTimerController
+import 'cart_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   final Movie movie;
@@ -15,6 +16,7 @@ class BookingScreen extends StatefulWidget {
   final DateTime date;
   final String time;
   final int hallId;
+  final int? screeningId; // Добавим screeningId для работы с бронированием
 
   const BookingScreen({
     Key? key,
@@ -25,6 +27,7 @@ class BookingScreen extends StatefulWidget {
     required this.date,
     required this.time,
     required this.hallId,
+    this.screeningId,
   }) : super(key: key);
 
   @override
@@ -41,27 +44,45 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSeats();
+    _loadAll();
   }
 
   @override
   void dispose() {
-    // Если пользователь уходит с экрана — сбрасываем таймер, если нет выбранных мест
-    if (selectedSeats.isEmpty) {
+    // Если пользователь уходит с экрана — отменяем бронирование, если нет выбранных мест
+    if (selectedSeats.isEmpty && widget.screeningId != null) {
+      SupabaseService.cancelBooking(widget.screeningId!);
       bookingTimerController.stop();
     }
     super.dispose();
   }
 
-  Future<void> _loadSeats() async {
+  Future<void> _loadAll() async {
     setState(() => isLoading = true);
     final loadedSeats = await SupabaseService.getSeatsByHall(widget.hallId);
     final loadedTypes = await SupabaseService.getSeatTypes();
+    Set<String> taken = {};
+    Set<String> restored = {};
+    if (widget.screeningId != null) {
+      taken = await SupabaseService.getTakenSeats(widget.screeningId!);
+      final booking = await SupabaseService.getActiveBooking(
+        widget.screeningId!,
+      );
+      if (booking != null && booking['seats'] is List) {
+        restored = Set<String>.from(booking['seats'].map((e) => e.toString()));
+      }
+    }
     setState(() {
       seats = loadedSeats;
       seatTypes = loadedTypes;
+      takenSeats = taken;
+      selectedSeats = restored;
       isLoading = false;
     });
+    // Если есть восстановленные места — запустить таймер
+    if (restored.isNotEmpty) {
+      bookingTimerController.start(widget.movie.title);
+    }
   }
 
   void _onSeatTap(String seatKey) {
@@ -71,15 +92,20 @@ class _BookingScreenState extends State<BookingScreen> {
       } else {
         selectedSeats.add(seatKey);
       }
-      // Запуск/остановка таймера бронирования
-      if (selectedSeats.isNotEmpty) {
-        if (selectedSeats.length == 1) {
-          // Первый выбор — стартуем таймер
-          bookingTimerController.start(widget.movie.title);
+      // Работа с бронированием в БД
+      if (widget.screeningId != null) {
+        if (selectedSeats.isNotEmpty) {
+          SupabaseService.createOrUpdateBooking(
+            widget.screeningId!,
+            selectedSeats.toList(),
+          );
+          if (selectedSeats.length == 1) {
+            bookingTimerController.start(widget.movie.title);
+          }
+        } else {
+          SupabaseService.cancelBooking(widget.screeningId!);
+          bookingTimerController.stop();
         }
-      } else {
-        // Все сняты — сбрасываем таймер
-        bookingTimerController.stop();
       }
     });
   }
@@ -650,7 +676,13 @@ class _BookingScreenState extends State<BookingScreen> {
                             SizedBox(
                               height: 54,
                               child: ElevatedButton(
-                                onPressed: () {},
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const CartScreen(),
+                                    ),
+                                  );
+                                },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Color(0xFF6B7AFF),
                                   shape: RoundedRectangleBorder(

@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/movie.dart';
 import '../models/filters.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 class SupabaseService {
   static final supabase = Supabase.instance.client;
@@ -12,6 +14,108 @@ class SupabaseService {
       anonKey:
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nd3Z3bXd0cWNkcWhodG1oYnl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2NzIyODUsImV4cCI6MjA2NjI0ODI4NX0.5PGutE0vzwIL3utI-O31N4WF9zco4Jv0BQxUDkJSq-A',
     );
+  }
+
+  // Получить уникальный идентификатор устройства (используем как user_id)
+  static Future<String> getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? deviceId = prefs.getString('device_id');
+    if (deviceId == null) {
+      deviceId = const Uuid().v4();
+      await prefs.setString('device_id', deviceId);
+    }
+    print('DeviceId: $deviceId');
+    return deviceId;
+  }
+
+  // Получить активное бронирование для устройства и сеанса
+  static Future<Map<String, dynamic>?> getActiveBooking(int screeningId) async {
+    final userId = await getDeviceId();
+    final now = DateTime.now().toUtc();
+    final fiveMinAgo = now.subtract(const Duration(minutes: 5));
+    final bookings = await supabase
+        .from('bookings')
+        .select()
+        .eq('screening_id', screeningId)
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .gte('booking_time', fiveMinAgo.toIso8601String());
+    print(
+      'getActiveBooking: screeningId=$screeningId, userId=$userId, result=$bookings',
+    );
+    if (bookings is List && bookings.isNotEmpty) {
+      return bookings.first as Map<String, dynamic>;
+    }
+    return null;
+  }
+
+  // Создать или обновить бронирование
+  static Future<void> createOrUpdateBooking(
+    int screeningId,
+    List<String> seats,
+  ) async {
+    final userId = await getDeviceId();
+    final now = DateTime.now().toUtc();
+    final active = await getActiveBooking(screeningId);
+    print(
+      'createOrUpdateBooking: screeningId=$screeningId, userId=$userId, seats=$seats, active=$active',
+    );
+    if (active == null) {
+      final response = await supabase.from('bookings').insert({
+        'screening_id': screeningId,
+        'user_id': userId,
+        'seats': seats,
+        'booking_time': now.toIso8601String(),
+        'status': 'pending',
+      });
+      print('Insert booking response: $response');
+    } else {
+      final response = await supabase
+          .from('bookings')
+          .update({'seats': seats, 'booking_time': now.toIso8601String()})
+          .eq('id', active['id']);
+      print('Update booking response: $response');
+    }
+  }
+
+  // Отменить бронирование
+  static Future<void> cancelBooking(int screeningId) async {
+    final active = await getActiveBooking(screeningId);
+    if (active != null) {
+      await supabase
+          .from('bookings')
+          .update({'status': 'cancelled'})
+          .eq('id', active['id']);
+    }
+  }
+
+  // Получить все занятые места для сеанса (pending и confirmed, не истекшие)
+  static Future<Set<String>> getTakenSeats(int screeningId) async {
+    final now = DateTime.now().toUtc();
+    final fiveMinAgo = now.subtract(const Duration(minutes: 5));
+    final bookings = await supabase
+        .from('bookings')
+        .select()
+        .eq('screening_id', screeningId)
+        .filter('status', 'in', '("pending","confirmed")');
+    final taken = <String>{};
+    if (bookings is List) {
+      for (final b in bookings) {
+        final status = b['status'] as String?;
+        final bookingTime = DateTime.tryParse(b['booking_time'] ?? '')?.toUtc();
+        if (status == 'pending' &&
+            (bookingTime == null || bookingTime.isBefore(fiveMinAgo))) {
+          continue; // skip expired pending
+        }
+        final seatsList = b['seats'] as List?;
+        if (seatsList != null) {
+          for (final seat in seatsList) {
+            if (seat is String) taken.add(seat);
+          }
+        }
+      }
+    }
+    return taken;
   }
 
   // Получение фильмов по дате показа

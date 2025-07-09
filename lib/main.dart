@@ -4,6 +4,8 @@ import 'screen/afisha_screen.dart';
 import 'screen/profile_screen.dart';
 import 'services/supabase_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'dart:async';
+import 'dart:ui';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +13,54 @@ void main() async {
   await initializeDateFormatting('ru', null);
   runApp(const MyApp());
 }
+
+// Глобальный контроллер таймера бронирования
+class BookingTimerController extends ValueNotifier<BookingTimerState?> {
+  BookingTimerController() : super(null);
+
+  Timer? _timer;
+
+  void start(
+    String movieTitle, {
+    Duration duration = const Duration(minutes: 5),
+  }) {
+    _timer?.cancel();
+    value = BookingTimerState(
+      movieTitle: movieTitle,
+      endTime: DateTime.now().add(duration),
+    );
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  void stop() {
+    _timer?.cancel();
+    value = null;
+  }
+
+  void _tick() {
+    if (value == null) return;
+    final remaining = value!.endTime.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      stop();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+}
+
+class BookingTimerState {
+  final String movieTitle;
+  final DateTime endTime;
+  BookingTimerState({required this.movieTitle, required this.endTime});
+}
+
+final bookingTimerController = BookingTimerController();
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -41,6 +91,33 @@ class MyApp extends StatelessWidget {
       ),
       home: const MainScreen(),
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return ValueListenableBuilder<BookingTimerState?>(
+          valueListenable: bookingTimerController,
+          builder: (context, state, _) {
+            final remaining =
+                state?.endTime.difference(DateTime.now()) ?? Duration.zero;
+            final showHeader = state != null && remaining > Duration.zero;
+            if (!showHeader) return child!;
+            return Column(
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                BookingTimerHeader(
+                  movieTitle: state!.movieTitle,
+                  remaining: remaining,
+                ),
+                Expanded(
+                  child: MediaQuery.removePadding(
+                    context: context,
+                    removeTop: true,
+                    child: child!,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -82,6 +159,65 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.movie), label: 'Афиша'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Профиль'),
         ],
+      ),
+    );
+  }
+}
+
+class BookingTimerHeader extends StatelessWidget {
+  final String movieTitle;
+  final Duration remaining;
+  const BookingTimerHeader({
+    super.key,
+    required this.movieTitle,
+    required this.remaining,
+  });
+
+  String _format(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double topPadding = MediaQuery.of(context).padding.top + 8;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.fromLTRB(24, topPadding, 24, 10),
+          color: Colors.black.withOpacity(0.85),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                movieTitle,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  decoration: TextDecoration.none,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                _format(remaining),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 28,
+                  letterSpacing: 1.2,
+                  decoration: TextDecoration.none,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

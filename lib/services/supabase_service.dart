@@ -178,4 +178,43 @@ class SupabaseService {
       return [];
     }
   }
+
+  // Получение процента заполненности зала для сеанса
+  static Future<double> getHallFillPercent({
+    required int screeningId,
+    required int hallId,
+  }) async {
+    // Получаем все места в зале
+    final seats = await getSeatsByHall(hallId);
+    final totalSeats = seats.length;
+    if (totalSeats == 0) return 0.0;
+
+    // Получаем все активные бронирования для этого сеанса
+    final now = DateTime.now().toUtc();
+    final fiveMinAgo = now.subtract(const Duration(minutes: 5));
+    final bookings = await supabase
+        .from('bookings')
+        .select()
+        .eq('screening_id', screeningId)
+        .filter('status', 'in', '("pending","confirmed")');
+
+    // Считаем занятые места (pending только если не истёк timeout)
+    final takenSeatIds = <int>{};
+    for (final booking in bookings) {
+      final status = booking['status'] as String?;
+      final bookingTime =
+          DateTime.tryParse(booking['booking_time'] ?? '')?.toUtc();
+      if (status == 'pending' &&
+          (bookingTime == null || bookingTime.isBefore(fiveMinAgo))) {
+        continue; // skip expired pending
+      }
+      final seatsList = booking['seats'] as List?;
+      if (seatsList != null) {
+        for (final seatId in seatsList) {
+          if (seatId is int) takenSeatIds.add(seatId);
+        }
+      }
+    }
+    return takenSeatIds.length / totalSeats;
+  }
 }

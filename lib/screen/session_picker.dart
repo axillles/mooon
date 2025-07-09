@@ -3,6 +3,7 @@ import '../models/movie.dart';
 import '../models/filters.dart';
 import '../services/supabase_service.dart';
 import 'booking_screen.dart';
+import 'movie_detail_screen.dart';
 
 class SessionPicker extends StatefulWidget {
   final Movie movie;
@@ -161,60 +162,99 @@ class _SessionPickerState extends State<SessionPicker> {
               // Информация о фильме
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: Image.network(
-                          widget.movie.imageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder:
-                              (context, error, stackTrace) => Container(
-                                color: Colors.grey[800],
-                                child: const Icon(
-                                  Icons.movie_outlined,
-                                  color: Colors.white38,
-                                  size: 32,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF23232A), Color(0xFF18181C)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 8,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Image.network(
+                            widget.movie.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder:
+                                (context, error, stackTrace) => Container(
+                                  color: Colors.grey[800],
+                                  child: const Icon(
+                                    Icons.movie_outlined,
+                                    color: Colors.white38,
+                                    size: 32,
+                                  ),
                                 ),
-                              ),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.movie.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.movie.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${widget.movie.ageRestriction}+  ${widget.movie.genres.join(', ')}  •  ${formatDuration(widget.movie.durationMinutes)}',
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 14,
+                            const SizedBox(height: 4),
+                            Text(
+                              '${widget.movie.ageRestriction}+  ${widget.movie.genres.join(', ')}  •  ${formatDuration(widget.movie.durationMinutes)}',
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.info_outline, color: Colors.white38),
-                  ],
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => MovieDetailScreen(movie: widget.movie),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white12,
+                            border: Border.all(
+                              color: Colors.white24,
+                              width: 1.5,
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(6),
+                          child: const Icon(
+                            Icons.info_outline,
+                            color: Colors.white,
+                            size: 26,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -259,13 +299,13 @@ class _SessionPickerState extends State<SessionPicker> {
                                       ? const Color(0xFF5B5BFF)
                                       : const Color(0xFF23232A),
                               borderRadius: BorderRadius.circular(14),
-                              border:
-                                  isSelected
-                                      ? Border.all(
-                                        color: const Color(0xFF5B5BFF),
-                                        width: 2,
-                                      )
-                                      : null,
+                              border: Border.all(
+                                color:
+                                    isSelected
+                                        ? const Color(0xFF5B5BFF)
+                                        : Colors.white.withOpacity(0.7),
+                                width: 0.4,
+                              ),
                             ),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -362,7 +402,7 @@ class _SessionPickerState extends State<SessionPicker> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${cinema['name']}   ${cinema['address']}',
+                cinema['name'] ?? '',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -371,46 +411,87 @@ class _SessionPickerState extends State<SessionPicker> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+              Text(
+                cinema['address'] ?? '',
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
               const SizedBox(height: 8),
-              SizedBox(
-                height: 150,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  shrinkWrap: true,
-                  itemCount: entry.value.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (context, i) {
-                    final screening = entry.value[i];
-                    final hall = halls[screening.hallId];
-                    return GestureDetector(
-                      onTap: () {
-                        final cinema = cinemas[hall?.cinemaId];
-                        if (cinema != null && hall != null) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder:
-                                  (_) => BookingScreen(
-                                    movie: widget.movie,
-                                    cinemaName: cinema['name'] ?? '',
-                                    cinemaAddress: cinema['address'] ?? '',
-                                    hallName: hall.name,
-                                    date: screening.startTime,
-                                    time: _formatTime(screening.startTime),
-                                    hallId: hall.id,
-                                  ),
-                            ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cardWidth = (constraints.maxWidth - 12) / 2;
+                  return SizedBox(
+                    height: 150,
+                    child: FutureBuilder<List<double>>(
+                      future: Future.wait(
+                        entry.value.map((screening) async {
+                          final hall = halls[screening.hallId];
+                          if (hall == null) return 0.0;
+                          return await SupabaseService.getHallFillPercent(
+                            screeningId: screening.id,
+                            hallId: hall.id,
+                          );
+                        }),
+                      ),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
                           );
                         }
+                        final fillPercents = snapshot.data!;
+                        return ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          shrinkWrap: true,
+                          itemCount: entry.value.length,
+                          separatorBuilder:
+                              (_, __) => const SizedBox(width: 12),
+                          padding: EdgeInsets.zero,
+                          itemBuilder: (context, i) {
+                            final screening = entry.value[i];
+                            final hall = halls[screening.hallId];
+                            final fillPercent = fillPercents[i];
+                            return SizedBox(
+                              width: cardWidth,
+                              child: GestureDetector(
+                                onTap: () {
+                                  final cinema = cinemas[hall?.cinemaId];
+                                  if (cinema != null && hall != null) {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder:
+                                            (_) => BookingScreen(
+                                              movie: widget.movie,
+                                              cinemaName: cinema['name'] ?? '',
+                                              cinemaAddress:
+                                                  cinema['address'] ?? '',
+                                              hallName: hall.name,
+                                              date: screening.startTime,
+                                              time: _formatTime(
+                                                screening.startTime,
+                                              ),
+                                              hallId: hall.id,
+                                            ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: _SessionCard(
+                                  time: _formatTime(screening.startTime),
+                                  hall: hall?.name ?? '',
+                                  tech: hall?.technology ?? '',
+                                  lang: screening.format ?? '',
+                                  fillPercent: fillPercent,
+                                ),
+                              ),
+                            );
+                          },
+                        );
                       },
-                      child: _SessionCard(
-                        time: _formatTime(screening.startTime),
-                        hall: hall?.name ?? '',
-                        tech: hall?.technology ?? '',
-                        lang: screening.format ?? '',
-                      ),
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -431,16 +512,27 @@ String formatDuration(int durationMinutes) {
   return minutes == 0 ? '$hours ч' : '$hours ч $minutes мин';
 }
 
+// 1. Подключить реальный процент заполненности зала
+// Для примера: пусть будет функция getHallFillPercent(hallId) (заглушка, можно заменить на реальную логику)
+double getHallFillPercent(int hallId) {
+  // TODO: заменить на реальную логику подсчёта заполненности
+  // Например, seatsTaken / seatsTotal
+  // Сейчас просто рандом для примера:
+  return (hallId % 10) / 10.0;
+}
+
 class _SessionCard extends StatelessWidget {
   final String time;
   final String hall;
   final String tech;
   final String lang;
+  final double fillPercent;
   const _SessionCard({
     required this.time,
     required this.hall,
     required this.tech,
     required this.lang,
+    required this.fillPercent,
   });
 
   @override
@@ -506,19 +598,32 @@ class _SessionCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          isVip
-              ? Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF5B5BFF), Color(0xFFFF4B5C)],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
+          // Прогресс-бар заполненности зала
+          Container(
+            width: double.infinity,
+            height: 28,
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: const Color(0xFF23232A),
+            ),
+            child: Stack(
+              children: [
+                // Градиентная заливка по заполненности
+                FractionallySizedBox(
+                  widthFactor: fillPercent.clamp(0.0, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF5B5BFF), Color(0xFFFF4B5C)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                    ),
                   ),
                 ),
-                child: Center(
+                Center(
                   child: Text(
                     hall,
                     style: const TextStyle(
@@ -530,46 +635,9 @@ class _SessionCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              )
-              : Stack(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF23232A),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Center(
-                      child: Text(
-                        hall,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 6,
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(10),
-                          bottomLeft: Radius.circular(10),
-                        ),
-                        color: const Color(0xFF5B5BFF),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              ],
+            ),
+          ),
         ],
       ),
     );

@@ -5,6 +5,7 @@ import '../models/movie.dart';
 import '../models/filters.dart';
 import '../services/supabase_service.dart';
 import 'dart:math';
+import '../main.dart'; // Для доступа к bookingTimerController
 
 class BookingScreen extends StatefulWidget {
   final Movie movie;
@@ -43,6 +44,15 @@ class _BookingScreenState extends State<BookingScreen> {
     _loadSeats();
   }
 
+  @override
+  void dispose() {
+    // Если пользователь уходит с экрана — сбрасываем таймер, если нет выбранных мест
+    if (selectedSeats.isEmpty) {
+      bookingTimerController.stop();
+    }
+    super.dispose();
+  }
+
   Future<void> _loadSeats() async {
     setState(() => isLoading = true);
     final loadedSeats = await SupabaseService.getSeatsByHall(widget.hallId);
@@ -61,7 +71,32 @@ class _BookingScreenState extends State<BookingScreen> {
       } else {
         selectedSeats.add(seatKey);
       }
+      // Запуск/остановка таймера бронирования
+      if (selectedSeats.isNotEmpty) {
+        if (selectedSeats.length == 1) {
+          // Первый выбор — стартуем таймер
+          bookingTimerController.start(widget.movie.title);
+        }
+      } else {
+        // Все сняты — сбрасываем таймер
+        bookingTimerController.stop();
+      }
     });
+  }
+
+  Seat? _findSeatByKey(String seatKey) {
+    return seats.firstWhere(
+      (s) => '${s.rowNumber}-${s.seatNumber}' == seatKey,
+      orElse: () => null as Seat, // временно, заменим ниже
+    );
+  }
+
+  SeatType? _findSeatTypeById(int? id) {
+    if (id == null) return null;
+    return seatTypes.firstWhere(
+      (t) => t.id == id,
+      orElse: () => null as SeatType, // временно, заменим ниже
+    );
   }
 
   // Универсальная функция для форматирования времени (часы и минуты)
@@ -320,6 +355,330 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                 ),
               ),
+              // Вкладка "Билеты"
+              if (selectedSeats.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          'Билеты',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 32,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ...selectedSeats.map((seatKey) {
+                        final seat =
+                            seats
+                                .where(
+                                  (s) =>
+                                      '${s.rowNumber}-${s.seatNumber}' ==
+                                      seatKey,
+                                )
+                                .toList();
+                        if (seat.isEmpty) return const SizedBox.shrink();
+                        final type =
+                            seatTypes
+                                .where((t) => t.id == seat.first.seatTypeId)
+                                .toList();
+                        final price =
+                            type.isNotEmpty ? type.first.price ?? 0.0 : 0.0;
+                        final iconAsset = () {
+                          switch (type.isNotEmpty ? type.first.code : '') {
+                            case 'loveseat':
+                              return 'assets/images/loveseat.svg';
+                            case 'sofa':
+                              return 'assets/images/sofa.svg';
+                            case 'recliner':
+                              return 'assets/images/recliner.svg';
+                            case 'loveseatrecliner':
+                            case 'love_seat_recliner':
+                              return 'assets/images/loveSeatRecliner.svg';
+                            default:
+                              return 'assets/images/single.svg';
+                          }
+                        }();
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 0,
+                          ),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 18),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF18181C),
+                              border: Border.all(
+                                color: Colors.white24,
+                                width: 1.2,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Row(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  child: SvgPicture.asset(
+                                    iconAsset,
+                                    width: 32,
+                                    height: 32,
+                                    color: const Color(0xFF6B7AFF),
+                                  ),
+                                ),
+                                Flexible(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    child: Text(
+                                      type.isNotEmpty ? type.first.name : '',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                      maxLines: 2,
+                                      softWrap: true,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                                IntrinsicWidth(
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        height: 48,
+                                        width: 1,
+                                        color: Colors.white24,
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              seat.first.rowNumber,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 18,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            const Text(
+                                              'ряд',
+                                              style: TextStyle(
+                                                color: Color(0xFF888888),
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        height: 48,
+                                        width: 1,
+                                        color: Colors.white24,
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              seat.first.seatNumber.toString(),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 18,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            const Text(
+                                              'место',
+                                              style: TextStyle(
+                                                color: Color(0xFF888888),
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        height: 48,
+                                        width: 1,
+                                        color: Colors.white24,
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              price
+                                                  .toStringAsFixed(2)
+                                                  .replaceAll('.', ','),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            const Text(
+                                              'BYN',
+                                              style: TextStyle(
+                                                color: Color(0xFF888888),
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 8,
+                                        ),
+                                        child: GestureDetector(
+                                          onTap:
+                                              () => setState(
+                                                () => selectedSeats.remove(
+                                                  seatKey,
+                                                ),
+                                              ),
+                                          child: Container(
+                                            width: 36,
+                                            height: 36,
+                                            decoration: BoxDecoration(
+                                              color: Colors.transparent,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Colors.white38,
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: const Icon(
+                                              Icons.close,
+                                              color: Colors.white,
+                                              size: 22,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'Итого:',
+                              style: TextStyle(
+                                color: Color(0xFF888888),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              selectedSeats
+                                  .map((seatKey) {
+                                    final seat =
+                                        seats
+                                            .where(
+                                              (s) =>
+                                                  '${s.rowNumber}-${s.seatNumber}' ==
+                                                  seatKey,
+                                            )
+                                            .toList();
+                                    if (seat.isEmpty) return 0.0;
+                                    final type =
+                                        seatTypes
+                                            .where(
+                                              (t) =>
+                                                  t.id == seat.first.seatTypeId,
+                                            )
+                                            .toList();
+                                    return type.isNotEmpty
+                                        ? type.first.price ?? 0.0
+                                        : 0.0;
+                                  })
+                                  .fold<double>(
+                                    0.0,
+                                    (a, b) =>
+                                        a + (b is num ? b.toDouble() : 0.0),
+                                  )
+                                  .toStringAsFixed(2)
+                                  .replaceAll('.', ','),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'BYN',
+                              style: TextStyle(
+                                color: Color(0xFF888888),
+                                fontSize: 20,
+                              ),
+                            ),
+                            const Spacer(),
+                            SizedBox(
+                              height: 54,
+                              child: ElevatedButton(
+                                onPressed: () {},
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Color(0xFF6B7AFF),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(28),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 0,
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  'В корзину',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
               // Виртуальный зал
               Padding(
                 padding: const EdgeInsets.symmetric(
@@ -496,7 +855,7 @@ class HallSeatMap extends StatelessWidget {
     for (final seat in seats) {
       rows.putIfAbsent(seat.rowNumber, () => []).add(seat);
     }
-    final double doubleSeatScale = 1.7;
+    final doubleSeatScale = 1.7;
     final labelWidth = 32.0;
     final hGapRatio = 0.05; // горизонтальный gap стал меньше
     final vGapRatio = 0.22; // вертикальный gap

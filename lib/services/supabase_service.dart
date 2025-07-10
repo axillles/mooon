@@ -3,6 +3,7 @@ import '../models/movie.dart';
 import '../models/filters.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import '../main.dart'; // Для доступа к bookingTimerController
 
 class SupabaseService {
   static final supabase = Supabase.instance.client;
@@ -24,7 +25,6 @@ class SupabaseService {
       deviceId = const Uuid().v4();
       await prefs.setString('device_id', deviceId);
     }
-    print('DeviceId: $deviceId');
     return deviceId;
   }
 
@@ -69,12 +69,16 @@ class SupabaseService {
         'status': 'pending',
       });
       print('Insert booking response: $response');
+      // Добавляем в глобальное отслеживание
+      bookingTimerController.addBooking(screeningId, now);
     } else {
       final response = await supabase
           .from('bookings')
           .update({'seats': seats, 'booking_time': now.toIso8601String()})
           .eq('id', active['id']);
       print('Update booking response: $response');
+      // Обновляем время в глобальном отслеживании
+      bookingTimerController.addBooking(screeningId, now);
     }
   }
 
@@ -82,17 +86,20 @@ class SupabaseService {
   static Future<void> cancelBooking(int screeningId) async {
     final active = await getActiveBooking(screeningId);
     if (active != null) {
-      await supabase
-          .from('bookings')
-          .update({'status': 'cancelled'})
-          .eq('id', active['id']);
+      await supabase.from('bookings').delete().eq('id', active['id']);
+      // Удаляем из глобального отслеживания
+      bookingTimerController.removeBooking(screeningId);
     }
   }
 
   // Получить все занятые места для сеанса (pending и confirmed, не истекшие)
-  static Future<Set<String>> getTakenSeats(int screeningId) async {
+  static Future<Set<String>> getTakenSeats(
+    int screeningId, {
+    bool excludeCurrentUser = true,
+  }) async {
     final now = DateTime.now().toUtc();
     final fiveMinAgo = now.subtract(const Duration(minutes: 5));
+    final currentUserId = excludeCurrentUser ? await getDeviceId() : null;
     final bookings = await supabase
         .from('bookings')
         .select()
@@ -103,6 +110,13 @@ class SupabaseService {
       for (final b in bookings) {
         final status = b['status'] as String?;
         final bookingTime = DateTime.tryParse(b['booking_time'] ?? '')?.toUtc();
+        final userId = b['user_id'] as String?;
+
+        // Исключаем места текущего пользователя, если excludeCurrentUser = true
+        if (excludeCurrentUser && userId == currentUserId) {
+          continue;
+        }
+
         if (status == 'pending' &&
             (bookingTime == null || bookingTime.isBefore(fiveMinAgo))) {
           continue; // skip expired pending
@@ -116,6 +130,73 @@ class SupabaseService {
       }
     }
     return taken;
+  }
+
+  // Проверить и отменить истекшие бронирования для всех сеансов
+  static Future<List<int>> checkAndCancelExpiredBookings() async {
+    final now = DateTime.now().toUtc();
+    final fiveMinAgo = now.subtract(const Duration(minutes: 5));
+    final expiredScreenings = <int>{};
+
+    try {
+      // Получаем все pending бронирования
+      final pendingBookings = await supabase
+          .from('bookings')
+          .select()
+          .eq('status', 'pending');
+
+      if (pendingBookings is List) {
+        for (final booking in pendingBookings) {
+          final bookingTime =
+              DateTime.tryParse(booking['booking_time'] ?? '')?.toUtc();
+          if (bookingTime != null && bookingTime.isBefore(fiveMinAgo)) {
+            final screeningId = booking['screening_id'] as int;
+            expiredScreenings.add(screeningId);
+            // Удаляем истекшее бронирование из БД
+            await supabase.from('bookings').delete().eq('id', booking['id']);
+            print('Удалено истекшее бронирование: ${booking['id']}');
+            print('Отменено истекшее бронирование: ${booking['id']}');
+          }
+        }
+      }
+      return expiredScreenings.toList();
+    } catch (e) {
+      print('Ошибка при проверке истекших бронирований: $e');
+      return [];
+    }
+  }
+
+  // Проверить и отменить истекшие бронирования для конкретного сеанса
+  static Future<void> checkAndCancelExpiredBookingsForScreening(
+    int screeningId,
+  ) async {
+    final now = DateTime.now().toUtc();
+    final fiveMinAgo = now.subtract(const Duration(minutes: 5));
+
+    try {
+      final pendingBookings = await supabase
+          .from('bookings')
+          .select()
+          .eq('screening_id', screeningId)
+          .eq('status', 'pending');
+
+      if (pendingBookings is List) {
+        for (final booking in pendingBookings) {
+          final bookingTime =
+              DateTime.tryParse(booking['booking_time'] ?? '')?.toUtc();
+          if (bookingTime != null && bookingTime.isBefore(fiveMinAgo)) {
+            await supabase.from('bookings').delete().eq('id', booking['id']);
+            print(
+              'Отменено истекшее бронирование для сеанса $screeningId: ${booking['id']}',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print(
+        'Ошибка при проверке истекших бронирований для сеанса $screeningId: $e',
+      );
+    }
   }
 
   // Получение фильмов по дате показа

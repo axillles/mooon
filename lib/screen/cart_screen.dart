@@ -3,6 +3,8 @@ import '../services/supabase_service.dart';
 import '../models/movie.dart';
 import '../models/filters.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../main.dart'; // Для доступа к bookingExpiredController
+import 'dart:async'; // Импортируем для StreamSubscription
 
 class CartScreen extends StatefulWidget {
   const CartScreen({Key? key}) : super(key: key);
@@ -19,57 +21,102 @@ class _CartScreenState extends State<CartScreen> {
   List<SeatType> seatTypes = [];
   List<Seat> seats = [];
   bool isLoading = true;
+  StreamSubscription<int>? _expiredSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadCart();
+    // Подписываемся на уведомления об истечении бронирования
+    _expiredSubscription = bookingExpiredController.stream.listen((
+      screeningId,
+    ) {
+      if (booking != null && booking!['screening_id'] == screeningId) {
+        _onBookingExpired();
+      }
+    });
+    _loadBooking();
   }
 
-  Future<void> _loadCart() async {
+  void _onBookingExpired() {
+    // Показываем уведомление об истечении времени
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Время бронирования истекло. Кресла освобождены.'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 3),
+      ),
+    );
+    // Возвращаемся на предыдущий экран
+    Navigator.of(context).pop();
+  }
+
+  @override
+  void dispose() {
+    _expiredSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadBooking() async {
     setState(() => isLoading = true);
-    final bookings = await SupabaseService.supabase
-        .from('bookings')
-        .select()
-        .eq('user_id', await SupabaseService.getDeviceId())
-        .eq('status', 'pending');
-    if (bookings is List && bookings.isNotEmpty) {
-      final b = bookings.first as Map<String, dynamic>;
-      final screeningId = b['screening_id'] as int;
-      final screeningList = await SupabaseService.supabase
-          .from('screenings')
+    try {
+      final userId = await SupabaseService.getDeviceId();
+      final bookings = await SupabaseService.supabase
+          .from('bookings')
           .select()
-          .eq('id', screeningId);
-      if (screeningList is List && screeningList.isNotEmpty) {
-        final screeningObj = Screening.fromJson(screeningList.first);
-        final movieList = await SupabaseService.supabase
-            .from('movies')
-            .select()
-            .eq('id', screeningObj.movieId);
-        final hallList = await SupabaseService.supabase
-            .from('halls')
-            .select()
-            .eq('id', screeningObj.hallId);
-        final seatTypesList = await SupabaseService.getSeatTypes();
-        final seatsList = await SupabaseService.getSeatsByHall(
-          screeningObj.hallId,
-        );
+          .eq('user_id', userId)
+          .eq('status', 'pending')
+          .order('booking_time', ascending: false);
+      if (bookings is List && bookings.isNotEmpty) {
+        final booking = bookings.first;
         setState(() {
-          booking = b;
-          movie = movieList.isNotEmpty ? Movie.fromJson(movieList.first) : null;
-          hall = hallList.isNotEmpty ? Hall.fromJson(hallList.first) : null;
-          screening = screeningObj;
-          seatTypes = seatTypesList;
-          seats = seatsList;
-          isLoading = false;
+          this.booking = booking;
         });
+        await _loadRelatedData();
       } else {
-        setState(() {
-          booking = b;
-          isLoading = false;
-        });
+        setState(() => isLoading = false);
       }
+    } catch (e) {
+      print('Ошибка при загрузке бронирования: $e');
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _loadRelatedData() async {
+    if (booking == null) return;
+
+    final screeningId = booking!['screening_id'] as int;
+    final screeningList = await SupabaseService.supabase
+        .from('screenings')
+        .select()
+        .eq('id', screeningId);
+    if (screeningList is List && screeningList.isNotEmpty) {
+      final screeningObj = Screening.fromJson(screeningList.first);
+      final movieList = await SupabaseService.supabase
+          .from('movies')
+          .select()
+          .eq('id', screeningObj.movieId);
+      final hallList = await SupabaseService.supabase
+          .from('halls')
+          .select()
+          .eq('id', screeningObj.hallId);
+      final seatTypesList = await SupabaseService.getSeatTypes();
+      final seatsList = await SupabaseService.getSeatsByHall(
+        screeningObj.hallId,
+      );
+
+      // Проверяем, что виджет все еще активен
+      if (!mounted) return;
+
+      setState(() {
+        movie = movieList.isNotEmpty ? Movie.fromJson(movieList.first) : null;
+        hall = hallList.isNotEmpty ? Hall.fromJson(hallList.first) : null;
+        screening = screeningObj;
+        seatTypes = seatTypesList;
+        seats = seatsList;
+        isLoading = false;
+      });
     } else {
+      if (!mounted) return;
       setState(() {
         booking = null;
         isLoading = false;
@@ -98,7 +145,12 @@ class _CartScreenState extends State<CartScreen> {
       ),
       body:
           isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? Container(
+                color: Colors.black,
+                child: const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+              )
               : booking == null
               ? const Center(
                 child: Text(
@@ -322,14 +374,23 @@ class _CartMovieTicketCard extends StatelessWidget {
               children: [
                 const SizedBox(height: 4),
                 ...seatKeys.map((seatKey) {
+                  // Проверяем, что seats загружены
+                  if (seats.isEmpty) {
+                    return const SizedBox.shrink(); // Показываем пустой виджет пока данные загружаются
+                  }
+
                   final seat = seats.firstWhere(
                     (s) => '${s.rowNumber}-${s.seatNumber}' == seatKey,
                     orElse:
                         () =>
-                            seats.isNotEmpty
-                                ? seats.first
-                                : throw Exception('Нет мест'),
+                            seats.first, // Используем первое место как fallback
                   );
+
+                  // Проверяем, что seatTypes загружены
+                  if (seatTypes.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
                   final seatType = seatTypes.firstWhere(
                     (t) => t.id == seat.seatTypeId,
                     orElse: () => seatTypes.first,

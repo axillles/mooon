@@ -14,11 +14,21 @@ void main() async {
   runApp(const MyApp());
 }
 
+// Глобальный стрим для уведомлений об истечении бронирования
+final StreamController<int> bookingExpiredController =
+    StreamController<int>.broadcast();
+
+// Глобальный стрим для уведомлений об изменениях бронирований
+final StreamController<int> bookingChangedController =
+    StreamController<int>.broadcast();
+
 // Глобальный контроллер таймера бронирования
 class BookingTimerController extends ValueNotifier<BookingTimerState?> {
   BookingTimerController() : super(null);
 
   Timer? _timer;
+  Timer? _checkTimer; // Таймер для проверки всех бронирований
+  Map<int, DateTime> _activeBookings = {}; // screeningId -> bookingTime
 
   void start(
     String movieTitle, {
@@ -30,11 +40,102 @@ class BookingTimerController extends ValueNotifier<BookingTimerState?> {
       endTime: DateTime.now().add(duration),
     );
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+    _startGlobalCheck();
   }
 
   void stop() {
     _timer?.cancel();
     value = null;
+  }
+
+  void _startGlobalCheck() {
+    _checkTimer?.cancel();
+    _checkTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _checkAllBookings(),
+    );
+  }
+
+  void _checkAllBookings() async {
+    try {
+      final expiredScreenings =
+          await SupabaseService.checkAndCancelExpiredBookings();
+      // Уведомляем экраны об истечении бронирований
+      for (final screeningId in expiredScreenings) {
+        bookingExpiredController.add(screeningId);
+      }
+      // Проверяем изменения в занятых местах
+      await _checkBookingChanges();
+      // Обновляем список активных бронирований
+      await _updateActiveBookings();
+    } catch (e) {
+      print('Ошибка при проверке бронирований: $e');
+    }
+  }
+
+  Future<void> _checkBookingChanges() async {
+    try {
+      // Получаем все активные бронирования для отслеживания изменений
+      final now = DateTime.now().toUtc();
+      final fiveMinAgo = now.subtract(const Duration(minutes: 5));
+      final bookings = await SupabaseService.supabase
+          .from('bookings')
+          .select()
+          .filter('status', 'in', '("pending","confirmed")')
+          .gte('booking_time', fiveMinAgo.toIso8601String());
+
+      if (bookings is List) {
+        // Группируем по screeningId для отслеживания изменений
+        final Map<int, List<Map<String, dynamic>>> bookingsByScreening = {};
+        for (final booking in bookings) {
+          final screeningId = booking['screening_id'] as int;
+          bookingsByScreening.putIfAbsent(screeningId, () => []).add(booking);
+        }
+
+        // Уведомляем о изменениях в каждом сеансе
+        for (final screeningId in bookingsByScreening.keys) {
+          bookingChangedController.add(
+            screeningId,
+          ); // Используем тот же контроллер для уведомлений об изменениях
+        }
+      }
+    } catch (e) {
+      print('Ошибка при проверке изменений бронирований: $e');
+    }
+  }
+
+  Future<void> _updateActiveBookings() async {
+    try {
+      final userId = await SupabaseService.getDeviceId();
+      final bookings = await SupabaseService.supabase
+          .from('bookings')
+          .select()
+          .eq('user_id', userId)
+          .eq('status', 'pending');
+
+      _activeBookings.clear();
+      if (bookings is List) {
+        for (final booking in bookings) {
+          final screeningId = booking['screening_id'] as int;
+          final bookingTime = DateTime.tryParse(booking['booking_time'] ?? '');
+          if (bookingTime != null) {
+            _activeBookings[screeningId] = bookingTime;
+          }
+        }
+      }
+    } catch (e) {
+      print('Ошибка при обновлении активных бронирований: $e');
+    }
+  }
+
+  // Добавить бронирование в отслеживание
+  void addBooking(int screeningId, DateTime bookingTime) {
+    _activeBookings[screeningId] = bookingTime;
+  }
+
+  // Удалить бронирование из отслеживания
+  void removeBooking(int screeningId) {
+    _activeBookings.remove(screeningId);
   }
 
   void _tick() {
@@ -50,6 +151,7 @@ class BookingTimerController extends ValueNotifier<BookingTimerState?> {
   @override
   void dispose() {
     _timer?.cancel();
+    _checkTimer?.cancel();
     super.dispose();
   }
 }

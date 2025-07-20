@@ -4,6 +4,7 @@ import '../models/filters.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../main.dart'; // Для доступа к bookingTimerController
+import 'dart:convert'; // Добавляем для jsonDecode
 
 class SupabaseService {
   static final supabase = Supabase.instance.client;
@@ -44,7 +45,14 @@ class SupabaseService {
       'getActiveBooking: screeningId=$screeningId, userId=$userId, result=$bookings',
     );
     if (bookings is List && bookings.isNotEmpty) {
-      return bookings.first as Map<String, dynamic>;
+      final booking = bookings.first as Map<String, dynamic>;
+      // Исправляем обработку seats
+      final seatsData = booking['seats'];
+      if (seatsData is String && seatsData.contains('-')) {
+        // Если это строка вида "4-1", преобразуем в список
+        booking['seats'] = [seatsData];
+      }
+      return booking;
     }
     return null;
   }
@@ -112,19 +120,43 @@ class SupabaseService {
         final bookingTime = DateTime.tryParse(b['booking_time'] ?? '')?.toUtc();
         final userId = b['user_id'] as String?;
 
-        // Исключаем места текущего пользователя, если excludeCurrentUser = true
-        if (excludeCurrentUser && userId == currentUserId) {
-          continue;
+        // Для confirmed мест - всегда добавляем в takenSeats
+        // Для pending мест - исключаем места текущего пользователя, если excludeCurrentUser = true
+        if (status == 'pending' &&
+            excludeCurrentUser &&
+            userId == currentUserId) {
+          continue; // Исключаем pending места текущего пользователя
         }
 
         if (status == 'pending' &&
             (bookingTime == null || bookingTime.isBefore(fiveMinAgo))) {
           continue; // skip expired pending
         }
-        final seatsList = b['seats'] as List?;
+        final seatsData = b['seats'];
+        List<dynamic>? seatsList;
+
+        if (seatsData is String) {
+          // Если seats - это строка вида "4-1", обрабатываем как одно место
+          if (seatsData.contains('-')) {
+            seatsList = [seatsData];
+          } else {
+            // Если это JSON массив в строке
+            try {
+              seatsList = jsonDecode(seatsData) as List<dynamic>;
+            } catch (e) {
+              print('Ошибка парсинга seats JSON: $e');
+              seatsList = null;
+            }
+          }
+        } else if (seatsData is List) {
+          seatsList = seatsData;
+        } else {
+          seatsList = null;
+        }
+
         if (seatsList != null) {
           for (final seat in seatsList) {
-            if (seat is String) taken.add(seat);
+            taken.add(seat.toString());
           }
         }
       }

@@ -212,6 +212,11 @@ class _CartMovieTicketCard extends StatelessWidget {
     required this.onRemove,
   });
 
+  void _cancelBookingAndTimer() {
+    SupabaseService.cancelBooking(booking['screening_id']);
+    bookingTimerController.stop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final seatKeys = (booking['seats'] as List?)?.cast<String>() ?? [];
@@ -507,15 +512,24 @@ class _CartMovieTicketCard extends StatelessWidget {
                             final newSeats = List<String>.from(seatKeys)
                               ..remove(seatKey);
                             if (newSeats.isEmpty) {
+                              _cancelBookingAndTimer();
                               onRemove();
+                              // Если корзина пуста, возвращаемся на экран выбора кресел
+                              Future.delayed(
+                                const Duration(milliseconds: 100),
+                                () {
+                                  if (Navigator.of(context).canPop()) {
+                                    Navigator.of(context).pop(true);
+                                  }
+                                },
+                              );
                             } else {
                               await SupabaseService.createOrUpdateBooking(
                                 booking['screening_id'],
                                 newSeats,
                               );
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(builder: (_) => CartScreen()),
-                              );
+                              booking['seats'] = newSeats;
+                              (context as Element).markNeedsBuild();
                             }
                           },
                           child: Container(

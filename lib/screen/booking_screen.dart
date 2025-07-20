@@ -10,6 +10,7 @@ import 'cart_screen.dart';
 import 'dart:async'; // Импортируем для StreamSubscription и Timer
 import 'hall_seat_map.dart';
 import 'booking_widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Добавляем импорт
 
 class BookingScreen extends StatefulWidget {
   final Movie movie;
@@ -48,10 +49,14 @@ class _BookingScreenState extends State<BookingScreen> {
   Timer? _updateTimer; // Таймер для периодического обновления карты
   bool _showExtendDialog = false;
   bool _extendDialogShown = false;
+  RealtimeChannel? _bookingChannel; // Для realtime подписки
+  RealtimeChannel? _seatsChannel; // Для подписки на seats
+  Timer? _debounceTimer; // Для предотвращения частых обновлений
 
   @override
   void initState() {
     super.initState();
+
     // Подписываемся на уведомления об истечении бронирования
     _expiredSubscription = bookingExpiredController.stream.listen((
       screeningId,
@@ -74,6 +79,46 @@ class _BookingScreenState extends State<BookingScreen> {
         _updateTakenSeats();
       }
     });
+    // --- Реалтайм подписка на bookings ---
+    if (widget.screeningId != null) {
+      _bookingChannel =
+          Supabase.instance.client
+              .channel('public:bookings')
+              .onPostgresChanges(
+                event: PostgresChangeEvent.all,
+                schema: 'public',
+                table: 'bookings',
+                callback: (payload) {
+                  final newRow = payload.newRecord;
+                  final oldRow = payload.oldRecord;
+                  if ((newRow != null &&
+                          newRow['screening_id'] == widget.screeningId) ||
+                      (oldRow != null &&
+                          oldRow['screening_id'] == widget.screeningId)) {
+                    _loadAll();
+                  }
+                },
+              )
+              .subscribe();
+    }
+    // --- Реалтайм подписка на seats (структура зала) ---
+    _seatsChannel =
+        Supabase.instance.client
+            .channel('public:seats')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'seats',
+              callback: (payload) {
+                final newRow = payload.newRecord;
+                final oldRow = payload.oldRecord;
+                if ((newRow != null && newRow['hall_id'] == widget.hallId) ||
+                    (oldRow != null && oldRow['hall_id'] == widget.hallId)) {
+                  _loadAll();
+                }
+              },
+            )
+            .subscribe();
     _loadAll();
   }
 
@@ -108,6 +153,16 @@ class _BookingScreenState extends State<BookingScreen> {
     _expiredSubscription?.cancel();
     _changedSubscription?.cancel();
     _updateTimer?.cancel();
+    _debounceTimer?.cancel();
+    // --- Отписка от realtime ---
+    if (_bookingChannel != null) {
+      Supabase.instance.client.removeChannel(_bookingChannel!);
+      _bookingChannel = null;
+    }
+    if (_seatsChannel != null) {
+      Supabase.instance.client.removeChannel(_seatsChannel!);
+      _seatsChannel = null;
+    }
     // Если пользователь уходит с экрана — отменяем бронирование, если нет выбранных мест
     if (selectedSeats.isEmpty && widget.screeningId != null) {
       SupabaseService.cancelBooking(widget.screeningId!);
@@ -122,38 +177,57 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _loadAll() async {
-    setState(() => isLoading = true);
-    final loadedSeats = await SupabaseService.getSeatsByHall(widget.hallId);
-    final loadedTypes = await SupabaseService.getSeatTypes();
-    Set<String> taken = {};
-    Set<String> restored = {};
-    if (widget.screeningId != null) {
-      taken = await SupabaseService.getTakenSeats(
-        widget.screeningId!,
-        excludeCurrentUser: true,
-      );
-      final booking = await SupabaseService.getActiveBooking(
-        widget.screeningId!,
-      );
-      if (booking != null && booking['seats'] is List) {
-        restored = Set<String>.from(booking['seats'].map((e) => e.toString()));
+    // Отменяем предыдущий debounce таймер
+    _debounceTimer?.cancel();
+
+    // Устанавливаем новый debounce таймер
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      setState(() => isLoading = true);
+      final loadedSeats = await SupabaseService.getSeatsByHall(widget.hallId);
+      final loadedTypes = await SupabaseService.getSeatTypes();
+      Set<String> taken = {};
+      Set<String> restored = {};
+      if (widget.screeningId != null) {
+        taken = await SupabaseService.getTakenSeats(
+          widget.screeningId!,
+          excludeCurrentUser: true,
+        );
+        final booking = await SupabaseService.getActiveBooking(
+          widget.screeningId!,
+        );
+        // Восстанавливаем только pending места в selectedSeats
+        if (booking != null &&
+            booking['seats'] is List &&
+            booking['status'] == 'pending') {
+          restored = Set<String>.from(
+            booking['seats'].map((e) => e.toString()),
+          );
+        }
       }
-    }
-    setState(() {
-      seats = loadedSeats;
-      seatTypes = loadedTypes;
-      takenSeats = taken;
-      selectedSeats = restored;
-      isLoading = false;
+      setState(() {
+        seats = loadedSeats;
+        seatTypes = loadedTypes;
+        takenSeats = taken;
+        selectedSeats = restored;
+        isLoading = false;
+      });
+      // Если есть восстановленные места — запустить таймер
+      if (restored.isNotEmpty && bookingTimerController.value == null) {
+        bookingTimerController.start(widget.movie.title);
+      }
     });
-    // Если есть восстановленные места — запустить таймер
-    if (restored.isNotEmpty && bookingTimerController.value == null) {
-      bookingTimerController.start(widget.movie.title);
+  }
+
+  void _cancelBookingAndTimer() {
+    if (widget.screeningId != null) {
+      SupabaseService.cancelBooking(widget.screeningId!);
     }
+    bookingTimerController.stop();
   }
 
   void _onSeatTap(String seatKey) {
     setState(() {
+      final wasEmpty = selectedSeats.isEmpty;
       if (selectedSeats.contains(seatKey)) {
         selectedSeats.remove(seatKey);
       } else {
@@ -166,13 +240,15 @@ class _BookingScreenState extends State<BookingScreen> {
             widget.screeningId!,
             selectedSeats.toList(),
           );
-          // Запускаем таймер только если его еще нет
-          if (bookingTimerController.value == null) {
+          // Каждый раз при добавлении кресла сбрасываем таймер на 5 минут
+          if (!selectedSeats.contains(seatKey)) {
+            // Если кресло убрали — не сбрасываем таймер
+            // (логика ниже)
+          } else {
             bookingTimerController.start(widget.movie.title);
           }
         } else {
-          SupabaseService.cancelBooking(widget.screeningId!);
-          bookingTimerController.stop();
+          _cancelBookingAndTimer();
         }
       }
     });
@@ -430,6 +506,26 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
           // Вкладка "Билеты"
+          // Виртуальный зал
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+            child: Center(
+              child:
+                  isLoading
+                      ? const CircularProgressIndicator()
+                      : SizedBox(
+                        height: 360,
+                        child: HallSeatMap(
+                          seats: seats,
+                          seatTypes: seatTypes,
+                          selectedSeats: selectedSeats,
+                          takenSeats: takenSeats,
+                          onSeatTap: _onSeatTap,
+                        ),
+                      ),
+            ),
+          ),
+          // Секция билеты переносим сюда
           if (selectedSeats.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
@@ -624,10 +720,13 @@ class _BookingScreenState extends State<BookingScreen> {
                                   Padding(
                                     padding: const EdgeInsets.only(right: 8),
                                     child: GestureDetector(
-                                      onTap:
-                                          () => setState(
-                                            () => selectedSeats.remove(seatKey),
-                                          ),
+                                      onTap: () {
+                                        setState(() {
+                                          selectedSeats.remove(seatKey);
+                                          if (selectedSeats.isEmpty)
+                                            _cancelBookingAndTimer();
+                                        });
+                                      },
                                       child: Container(
                                         width: 36,
                                         height: 36,
@@ -714,12 +813,15 @@ class _BookingScreenState extends State<BookingScreen> {
                         SizedBox(
                           height: 54,
                           child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.of(context).push(
+                            onPressed: () async {
+                              final result = await Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => const CartScreen(),
                                 ),
                               );
+                              if (result == true) {
+                                _loadAll();
+                              }
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Color(0xFF6B7AFF),
@@ -749,25 +851,6 @@ class _BookingScreenState extends State<BookingScreen> {
                 ],
               ),
             ),
-          // Виртуальный зал
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-            child: Center(
-              child:
-                  isLoading
-                      ? const CircularProgressIndicator()
-                      : SizedBox(
-                        height: 360,
-                        child: HallSeatMap(
-                          seats: seats,
-                          seatTypes: seatTypes,
-                          selectedSeats: selectedSeats,
-                          takenSeats: takenSeats,
-                          onSeatTap: _onSeatTap,
-                        ),
-                      ),
-            ),
-          ),
           // Сноска "Статус мест"
           if (!isLoading && seats.isNotEmpty)
             Padding(

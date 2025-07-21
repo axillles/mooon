@@ -434,4 +434,35 @@ class SupabaseService {
     }
     return takenSeatIds.length / totalSeats;
   }
+
+  // --- Аутентификация по телефону через Supabase ---
+  static Future<AuthResponse> signUpWithPhone({
+    required String phone,
+    required String password,
+  }) async {
+    return await supabase.auth.signUp(phone: phone, password: password);
+  }
+
+  static Future<AuthResponse> signInWithPhone({
+    required String phone,
+    required String password,
+  }) async {
+    return await supabase.auth.signInWithPassword(
+      phone: phone,
+      password: password,
+    );
+  }
+
+  static Future<void> verifyPhoneOtp({
+    required String phone,
+    required String token,
+    required String type,
+  }) async {
+    // type: 'sms' для подтверждения регистрации, 'recovery' для восстановления
+    await supabase.auth.verifyOTP(
+      phone: phone,
+      token: token,
+      type: OtpType.sms,
+    );
+  }
 }

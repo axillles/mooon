@@ -6,12 +6,97 @@ import 'services/supabase_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:async';
 import 'dart:ui';
+import 'screen/auth_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseService.initialize();
   await initializeDateFormatting('ru', null);
-  runApp(const MyApp());
+  runApp(const EntryPoint());
+}
+
+class EntryPoint extends StatefulWidget {
+  const EntryPoint({super.key});
+
+  @override
+  State<EntryPoint> createState() => _EntryPointState();
+}
+
+class _EntryPointState extends State<EntryPoint> {
+  bool? _showAuth;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seenAuth = prefs.getBool('seen_auth') ?? false;
+    setState(() {
+      _showAuth = !seenAuth;
+    });
+  }
+
+  void _onAuthSuccess() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('seen_auth', true);
+    setState(() {
+      _showAuth = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showAuth == null) {
+      return const MaterialApp(
+        home: Scaffold(
+          backgroundColor: Color(0xFF23232A),
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+    if (_showAuth == true) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: AuthScreenWithCallback(onSuccess: _onAuthSuccess),
+        theme: ThemeData.dark(),
+      );
+    }
+    return const MyApp();
+  }
+}
+
+class AuthScreenWithCallback extends StatelessWidget {
+  final VoidCallback onSuccess;
+  const AuthScreenWithCallback({required this.onSuccess, Key? key})
+    : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return AuthScreenWithLogic(onSuccess: onSuccess);
+  }
+}
+
+class AuthScreenWithLogic extends StatefulWidget {
+  final VoidCallback onSuccess;
+  const AuthScreenWithLogic({required this.onSuccess, Key? key})
+    : super(key: key);
+
+  @override
+  State<AuthScreenWithLogic> createState() => _AuthScreenWithLogicState();
+}
+
+class _AuthScreenWithLogicState extends State<AuthScreenWithLogic> {
+  @override
+  Widget build(BuildContext context) {
+    return AuthScreen(
+      // Заглушка: при нажатии на кнопку "Войти" или "Зарегистрироваться" вызываем onSuccess
+      key: widget.key,
+    );
+  }
 }
 
 // Глобальный стрим для уведомлений об истечении бронирования

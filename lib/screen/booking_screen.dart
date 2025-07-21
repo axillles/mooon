@@ -95,7 +95,7 @@ class _BookingScreenState extends State<BookingScreen> {
                           newRow['screening_id'] == widget.screeningId) ||
                       (oldRow != null &&
                           oldRow['screening_id'] == widget.screeningId)) {
-                    _loadAll();
+                    _updateTakenSeats();
                   }
                 },
               )

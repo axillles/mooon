@@ -7,6 +7,7 @@ import '../services/image_service.dart';
 import 'movie_detail_screen.dart';
 import 'filter_screen.dart';
 import 'search_screen.dart';
+import 'cart_screen.dart';
 
 // Универсальная функция для форматирования времени (часы и минуты)
 String formatDuration(int durationMinutes) {
@@ -264,6 +265,22 @@ class _AfishaScreenState extends State<AfishaScreen>
     _cityOverlay = null;
   }
 
+  Future<int> _getCartCount() async {
+    final userId = await SupabaseService.getDeviceId();
+    final bookings = await SupabaseService.supabase
+        .from('bookings')
+        .select()
+        .eq('user_id', userId)
+        .eq('status', 'pending');
+    if (bookings is List && bookings.isNotEmpty) {
+      final booking = bookings.first;
+      final seats = booking['seats'];
+      if (seats is List) return seats.length;
+      if (seats is String && seats.contains('-')) return 1;
+    }
+    return 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -343,10 +360,54 @@ class _AfishaScreenState extends State<AfishaScreen>
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Icon(
-                    Icons.shopping_cart_outlined,
-                    color: Colors.white,
-                    size: 26,
+                  // --- КОРЗИНА С БЕЙДЖЕМ ---
+                  FutureBuilder<int>(
+                    future: _getCartCount(),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.shopping_cart_outlined,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const CartScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          if (count > 0)
+                            Positioned(
+                              right: 2,
+                              top: -2,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Color(0xFF5B5BFF),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  '$count',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(width: 16),
                   const Icon(

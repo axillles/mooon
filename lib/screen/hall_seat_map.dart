@@ -148,7 +148,11 @@ class HallSeatMap extends StatelessWidget {
                         child: SizedBox(
                           width: seatWidth,
                           height: seatSize,
-                          child: SvgPicture.asset(asset, color: color),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 350),
+                            curve: Curves.easeInOut,
+                            child: SvgPicture.asset(asset, color: color),
+                          ),
                         ),
                       ),
                     ),

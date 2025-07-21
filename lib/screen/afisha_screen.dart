@@ -8,6 +8,7 @@ import 'movie_detail_screen.dart';
 import 'filter_screen.dart';
 import 'search_screen.dart';
 import 'cart_screen.dart';
+import 'profile_screen.dart';
 
 // Универсальная функция для форматирования времени (часы и минуты)
 String formatDuration(int durationMinutes) {
@@ -410,10 +411,19 @@ class _AfishaScreenState extends State<AfishaScreen>
                     },
                   ),
                   const SizedBox(width: 16),
-                  const Icon(
-                    Icons.person_outline,
-                    color: Colors.white,
-                    size: 26,
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(),
+                        ),
+                      );
+                    },
+                    child: const Icon(
+                      Icons.person_outline,
+                      color: Colors.white,
+                      size: 26,
+                    ),
                   ),
                 ],
               ),

@@ -177,3 +177,32 @@ class SeatType {
     );
   }
 }
+
+class Booking {
+  final int id;
+  final int screeningId;
+  final String userId;
+  final List<String> seats;
+  final DateTime bookingTime;
+  final String status;
+
+  Booking({
+    required this.id,
+    required this.screeningId,
+    required this.userId,
+    required this.seats,
+    required this.bookingTime,
+    required this.status,
+  });
+
+  factory Booking.fromJson(Map<String, dynamic> json) {
+    return Booking(
+      id: json['id'] as int,
+      screeningId: json['screening_id'] as int,
+      userId: json['user_id'] as String,
+      seats: (json['seats'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      bookingTime: DateTime.parse(json['booking_time'] as String),
+      status: json['status'] as String,
+    );
+  }
+}

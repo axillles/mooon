@@ -29,9 +29,18 @@ class SupabaseService {
     return deviceId;
   }
 
+  // Получить id текущего пользователя (auth или deviceId)
+  static Future<String> getCurrentUserId() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      return user.id;
+    }
+    return await getDeviceId();
+  }
+
   // Получить активное бронирование для устройства и сеанса
   static Future<Map<String, dynamic>?> getActiveBooking(int screeningId) async {
-    final userId = await getDeviceId();
+    final userId = await getCurrentUserId();
     final now = DateTime.now().toUtc();
     final fiveMinAgo = now.subtract(const Duration(minutes: 5));
     final bookings = await supabase
@@ -62,7 +71,7 @@ class SupabaseService {
     int screeningId,
     List<String> seats,
   ) async {
-    final userId = await getDeviceId();
+    final userId = await getCurrentUserId();
     final now = DateTime.now().toUtc();
     final active = await getActiveBooking(screeningId);
     print(
@@ -107,7 +116,7 @@ class SupabaseService {
   }) async {
     final now = DateTime.now().toUtc();
     final fiveMinAgo = now.subtract(const Duration(minutes: 5));
-    final currentUserId = excludeCurrentUser ? await getDeviceId() : null;
+    final currentUserId = excludeCurrentUser ? await getCurrentUserId() : null;
     final bookings = await supabase
         .from('bookings')
         .select()
@@ -464,5 +473,69 @@ class SupabaseService {
       token: token,
       type: OtpType.sms,
     );
+  }
+
+  // Получить активные билеты пользователя (будущие бронирования)
+  static Future<List<Map<String, dynamic>>> getActiveUserBookings() async {
+    final userId = await getCurrentUserId();
+    final now = DateTime.now().toUtc();
+    // Получаем все бронирования пользователя
+    final bookings = await supabase
+        .from('bookings')
+        .select()
+        .eq('user_id', userId)
+        .filter('status', 'in', '("confirmed","active")')
+        .order('booking_time', ascending: false);
+    List<Map<String, dynamic>> result = [];
+    for (final booking in bookings) {
+      final screeningId = booking['screening_id'] as int;
+      // Получаем сеанс
+      final screeningList = await supabase
+          .from('screenings')
+          .select()
+          .eq('id', screeningId);
+      if (screeningList is List && screeningList.isNotEmpty) {
+        final screening = screeningList.first;
+        final startTime = DateTime.parse(screening['start_time']);
+        if (startTime.isAfter(now)) {
+          // Получаем фильм
+          final movieList = await supabase
+              .from('movies')
+              .select()
+              .eq('id', screening['movie_id']);
+          final movie =
+              movieList is List && movieList.isNotEmpty
+                  ? movieList.first
+                  : null;
+          // Получаем зал
+          final hallList = await supabase
+              .from('halls')
+              .select()
+              .eq('id', screening['hall_id']);
+          final hall =
+              hallList is List && hallList.isNotEmpty ? hallList.first : null;
+          // Получаем кинотеатр
+          Map<String, dynamic>? cinema;
+          if (hall != null) {
+            final cinemaList = await supabase
+                .from('cinemas')
+                .select()
+                .eq('id', hall['cinema_id']);
+            cinema =
+                cinemaList is List && cinemaList.isNotEmpty
+                    ? cinemaList.first
+                    : null;
+          }
+          result.add({
+            'booking': booking,
+            'screening': screening,
+            'movie': movie,
+            'hall': hall,
+            'cinema': cinema,
+          });
+        }
+      }
+    }
+    return result;
   }
 }

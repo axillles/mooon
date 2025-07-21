@@ -93,8 +93,8 @@ class _AuthScreenWithLogicState extends State<AuthScreenWithLogic> {
   @override
   Widget build(BuildContext context) {
     return AuthScreen(
-      // Заглушка: при нажатии на кнопку "Войти" или "Зарегистрироваться" вызываем onSuccess
       key: widget.key,
+      onSuccess: widget.onSuccess, // <--- вот это добавляем!
     );
   }
 }

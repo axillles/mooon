@@ -538,4 +538,112 @@ class SupabaseService {
     }
     return result;
   }
+
+  // Получить историю билетов пользователя (все бронирования)
+  static Future<List<Map<String, dynamic>>> getUserBookingHistory() async {
+    final userId = await getCurrentUserId();
+    // Получаем все бронирования пользователя
+    final bookings = await supabase
+        .from('bookings')
+        .select()
+        .eq('user_id', userId)
+        .order('booking_time', ascending: false);
+    List<Map<String, dynamic>> result = [];
+    for (final booking in bookings) {
+      final screeningId = booking['screening_id'] as int;
+      // Получаем сеанс
+      final screeningList = await supabase
+          .from('screenings')
+          .select()
+          .eq('id', screeningId);
+      if (screeningList is List && screeningList.isNotEmpty) {
+        final screening = screeningList.first;
+        // Получаем фильм
+        final movieList = await supabase
+            .from('movies')
+            .select()
+            .eq('id', screening['movie_id']);
+        final movie =
+            movieList is List && movieList.isNotEmpty ? movieList.first : null;
+        // Получаем зал
+        final hallList = await supabase
+            .from('halls')
+            .select()
+            .eq('id', screening['hall_id']);
+        final hall =
+            hallList is List && hallList.isNotEmpty ? hallList.first : null;
+        // Получаем кинотеатр
+        Map<String, dynamic>? cinema;
+        if (hall != null) {
+          final cinemaList = await supabase
+              .from('cinemas')
+              .select()
+              .eq('id', hall['cinema_id']);
+          cinema =
+              cinemaList is List && cinemaList.isNotEmpty
+                  ? cinemaList.first
+                  : null;
+        }
+        // Получаем seatTypes для зала
+        List<Map<String, dynamic>> seatTypes = [];
+        if (hall != null) {
+          final seatTypeIds = await supabase
+              .from('seats')
+              .select('seat_type_id')
+              .eq('hall_id', hall['id']);
+          final uniqueTypeIds =
+              (seatTypeIds as List)
+                  .map((e) => e['seat_type_id'])
+                  .toSet()
+                  .toList();
+          if (uniqueTypeIds.isNotEmpty) {
+            final idsStr = '(' + uniqueTypeIds.join(',') + ')';
+            final types = await supabase
+                .from('seat_types')
+                .select()
+                .filter('id', 'in', idsStr);
+            if (types is List) seatTypes = types.cast<Map<String, dynamic>>();
+          }
+        }
+        result.add({
+          'booking': booking,
+          'screening': screening,
+          'movie': movie,
+          'hall': hall,
+          'cinema': cinema,
+          'seatTypes': seatTypes,
+        });
+      }
+    }
+    return result;
+  }
+
+  // --- Profile ---
+
+  static Future<Map<String, dynamic>?> getUserProfile() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      return null;
+    }
+    try {
+      final response =
+          await supabase.from('profiles').select().eq('id', user.id).single();
+      return response;
+    } catch (e) {
+      print('Error fetching user profile: $e');
+      return null;
+    }
+  }
+
+  static Future<void> updateUserProfile(Map<String, dynamic> data) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) throw Exception("Пользователь не авторизован");
+    await supabase.from('profiles').update(data).eq('id', user.id);
+  }
+
+  static Future<void> updateUserPassword(String newPassword) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) throw Exception("Пользователь не авторизован");
+    await supabase.auth.updateUser(UserAttributes(password: newPassword));
+  }
 }

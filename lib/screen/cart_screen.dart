@@ -59,7 +59,7 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _loadBooking() async {
     setState(() => isLoading = true);
     try {
-      final userId = await SupabaseService.getDeviceId();
+      final userId = await SupabaseService.getCurrentUserId();
       final bookings = await SupabaseService.supabase
           .from('bookings')
           .select()

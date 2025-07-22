@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import '../services/supabase_service.dart';
 import 'package:intl/intl.dart';
+import '../models/filters.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -24,6 +25,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final double progress = 0.05; // 5%
   final int userPoints = 500; // Текущее количество баллов пользователя
   final int goalPoints = 10000; // Цель для перехода на 10%
+
+  int _profileContentIndex = 0; // 0 for info, 1 for password
 
   @override
   Widget build(BuildContext context) {
@@ -269,173 +272,795 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            // Контент вкладки (пока просто заглушка)
-            Expanded(
-              child:
-                  _selectedTab == 1
-                      ? FutureBuilder<List<Map<String, dynamic>>>(
-                        future: SupabaseService.getActiveUserBookings(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
+            // Контент вкладки
+            Expanded(child: _buildTabContent()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabContent() {
+    if (_selectedTab == 1) {
+      return FutureBuilder<List<Map<String, dynamic>>>(
+        future: SupabaseService.getActiveUserBookings(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final tickets = snapshot.data ?? [];
+          if (tickets.isEmpty) {
+            return const Center(
+              child: Text(
+                'У вас нет активных билетов',
+                style: TextStyle(color: Colors.white38, fontSize: 20),
+              ),
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            itemCount: tickets.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 18),
+            itemBuilder: (context, i) {
+              final t = tickets[i];
+              final movie = t['movie'];
+              final screening = t['screening'];
+              final hall = t['hall'];
+              final cinema = t['cinema'];
+              final booking = t['booking'];
+              final startTime = DateTime.parse(screening['start_time']);
+              final seats = (booking['seats'] as List?)?.join(', ') ?? '';
+              return Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF23232A),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      movie?['title'] ?? 'Фильм',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.event,
+                          color: Colors.white38,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          DateFormat('d MMMM, HH:mm', 'ru').format(startTime),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.chair,
+                          color: Colors.white38,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Места: $seats',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on,
+                          color: Colors.white38,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '${cinema?['name'] ?? ''}, ${cinema?['address'] ?? ''}',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.meeting_room,
+                          color: Colors.white38,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Зал: ${hall?['name'] ?? ''}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    } else if (_selectedTab == 3) {
+      return FutureBuilder<List<Map<String, dynamic>>>(
+        future: SupabaseService.getUserBookingHistory(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final tickets = snapshot.data ?? [];
+          if (tickets.isEmpty) {
+            return const Center(
+              child: Text(
+                'История пуста',
+                style: TextStyle(color: Colors.white38, fontSize: 20),
+              ),
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            itemCount: tickets.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 18),
+            itemBuilder: (context, i) {
+              final t = tickets[i];
+              final movie = t['movie'];
+              final screening = t['screening'];
+              final hall = t['hall'];
+              final cinema = t['cinema'];
+              final booking = t['booking'];
+              final startTime = DateTime.parse(screening['start_time']);
+              final seats = (booking['seats'] as List?)?.join(', ') ?? '';
+              return FutureBuilder<double>(
+                future: () async {
+                  double total = 0.0;
+                  final seatTypes =
+                      (t['seatTypes'] as List?)?.cast<Map<String, dynamic>>() ??
+                      [];
+                  if (hall != null &&
+                      booking['seats'] is List &&
+                      seatTypes.isNotEmpty) {
+                    final seatsList = booking['seats'] as List;
+                    final seatsData = await SupabaseService.supabase
+                        .from('seats')
+                        .select()
+                        .eq('hall_id', hall['id']);
+                    for (final seatKey in seatsList) {
+                      final parts = seatKey.toString().split('-');
+                      if (parts.length == 2) {
+                        final row = parts[0].replaceFirst(RegExp(r'^0+'), '');
+                        final number = int.tryParse(parts[1]);
+                        final seat = (seatsData as List).firstWhere(
+                          (s) =>
+                              s['row_number'].toString().replaceFirst(
+                                    RegExp(r'^0+'),
+                                    '',
+                                  ) ==
+                                  row &&
+                              s['seat_number'] == number,
+                          orElse: () => {},
+                        );
+                        if (seat.isNotEmpty) {
+                          final typeId = seat['seat_type_id'];
+                          final type = seatTypes.firstWhere(
+                            (t) => t['id'] == typeId,
+                            orElse: () => {},
+                          );
+                          if (type.isNotEmpty && type['price'] is num) {
+                            total += (type['price'] as num).toDouble();
                           }
-                          final tickets = snapshot.data ?? [];
-                          if (tickets.isEmpty) {
-                            return const Center(
+                        }
+                      }
+                    }
+                  }
+                  return total;
+                }(),
+                builder: (context, snap) {
+                  final total = snap.data ?? 0.0;
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF23232A),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
                               child: Text(
-                                'У вас нет активных билетов',
-                                style: TextStyle(
-                                  color: Colors.white38,
+                                movie?['title'] ?? 'Фильм',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
                                   fontSize: 20,
                                 ),
                               ),
-                            );
-                          }
-                          return ListView.separated(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 12,
                             ),
-                            itemCount: tickets.length,
-                            separatorBuilder:
-                                (_, __) => const SizedBox(height: 18),
-                            itemBuilder: (context, i) {
-                              final t = tickets[i];
-                              final movie = t['movie'];
-                              final screening = t['screening'];
-                              final hall = t['hall'];
-                              final cinema = t['cinema'];
-                              final booking = t['booking'];
-                              final startTime = DateTime.parse(
-                                screening['start_time'],
-                              );
-                              final seats =
-                                  (booking['seats'] as List?)?.join(', ') ?? '';
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF23232A),
-                                  borderRadius: BorderRadius.circular(16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white12,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                total > 0
+                                    ? '${total.toStringAsFixed(2).replaceAll('.', ',')} BYN'
+                                    : '-',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
                                 ),
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      movie?['title'] ?? 'Фильм',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 20,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.event,
-                                          color: Colors.white38,
-                                          size: 18,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          DateFormat(
-                                            'd MMMM, HH:mm',
-                                            'ru',
-                                          ).format(startTime),
-                                          style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.chair,
-                                          color: Colors.white38,
-                                          size: 18,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'Места: $seats',
-                                          style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.location_on,
-                                          color: Colors.white38,
-                                          size: 18,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Expanded(
-                                          child: Text(
-                                            '${cinema?['name'] ?? ''}, ${cinema?['address'] ?? ''}',
-                                            style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 16,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.meeting_room,
-                                          color: Colors.white38,
-                                          size: 18,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'Зал: ${hall?['name'] ?? ''}',
-                                          style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.event,
+                              color: Colors.white38,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              DateFormat(
+                                'd MMMM, HH:mm',
+                                'ru',
+                              ).format(startTime),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.chair,
+                              color: Colors.white38,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Места: $seats',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on,
+                              color: Colors.white38,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '${cinema?['name'] ?? ''}, ${cinema?['address'] ?? ''}',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16,
                                 ),
-                              );
-                            },
-                          );
-                        },
-                      )
-                      : Center(
-                        child:
-                            _selectedTab == 0
-                                ? const Icon(
-                                  Icons.home,
-                                  color: Colors.white38,
-                                  size: 60,
-                                )
-                                : Text(
-                                  _tabs[_selectedTab],
-                                  style: const TextStyle(
-                                    color: Colors.white38,
-                                    fontSize: 22,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.meeting_room,
+                              color: Colors.white38,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Зал: ${hall?['name'] ?? ''}',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      );
+    } else if (_selectedTab == 4) {
+      return _buildProfileTab();
+    } else {
+      return Center(
+        child:
+            _selectedTab == 0
+                ? const Icon(Icons.home, color: Colors.white38, size: 60)
+                : Text(
+                  _tabs[_selectedTab],
+                  style: const TextStyle(color: Colors.white38, fontSize: 22),
+                ),
+      );
+    }
+  }
+
+  Widget _buildProfileTab() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              Expanded(child: _buildSubTabButton('Профиль', 0)),
+              const SizedBox(width: 12),
+              Expanded(child: _buildSubTabButton('Пароль', 1)),
+            ],
+          ),
+        ),
+        Expanded(
+          child: IndexedStack(
+            index: _profileContentIndex,
+            children: [
+              ListView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                children: [
+                  const SizedBox(height: 8),
+                  const ProfileInfoEditor(),
+                  const SizedBox(height: 32),
+                  TextButton(
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder:
+                            (context) => AlertDialog(
+                              backgroundColor: const Color(0xFF23232A),
+                              title: const Text(
+                                'Удалить аккаунт?',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              content: const Text(
+                                'Вы уверены, что хотите удалить аккаунт? Это действие необратимо.',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed:
+                                      () => Navigator.of(context).pop(false),
+                                  child: const Text('Отмена'),
+                                ),
+                                TextButton(
+                                  onPressed:
+                                      () => Navigator.of(context).pop(true),
+                                  child: const Text(
+                                    'Удалить',
+                                    style: TextStyle(color: Colors.red),
                                   ),
                                 ),
+                              ],
+                            ),
+                      );
+                      if (confirmed == true) {
+                        try {
+                          await SupabaseService.supabase.auth.admin.deleteUser(
+                            SupabaseService.supabase.auth.currentUser!.id,
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Письмо для подтверждения удаления отправлено.',
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Ошибка: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      alignment: Alignment.centerLeft,
+                    ),
+                    child: const Text(
+                      'Удалить мой профиль',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
                       ),
-            ),
-          ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Вы получите электронное письмо для подтверждения вашего решения.\n\nПосле подтверждения ваш профиль на сайте mooon.by будет удалён. Все начисленные и неиспользованные бонусы по программе лояльности будут аннулированы. Восстановить личный кабинет и данные в нем невозможно.',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 16,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+              const PasswordEditor(),
+            ],
+          ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildSubTabButton(String text, int index) {
+    final isSelected = _profileContentIndex == index;
+    return ElevatedButton(
+      onPressed: () => setState(() => _profileContentIndex = index),
+      style: ElevatedButton.styleFrom(
+        backgroundColor:
+            isSelected ? const Color(0xFF5B5BFF) : const Color(0xFF23232A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        elevation: 0,
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: isSelected ? Colors.white : Colors.white70,
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+        ),
+      ),
+    );
+  }
+}
+
+class ProfileInfoEditor extends StatefulWidget {
+  const ProfileInfoEditor({Key? key}) : super(key: key);
+
+  @override
+  State<ProfileInfoEditor> createState() => _ProfileInfoEditorState();
+}
+
+class _ProfileInfoEditorState extends State<ProfileInfoEditor> {
+  Map<String, dynamic>? _userProfile;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final profile = await SupabaseService.getUserProfile();
+    if (mounted) {
+      setState(() {
+        _userProfile = profile;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _editField(
+    BuildContext context,
+    String fieldKey,
+    String label, {
+    bool isDate = false,
+  }) async {
+    final TextEditingController controller = TextEditingController(
+      text: _userProfile?[fieldKey] ?? '',
+    );
+    final result = await showDialog<String>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: const Color(0xFF23232A),
+            title: Text(
+              'Изменить ${label.toLowerCase()}',
+              style: const TextStyle(color: Colors.white),
+            ),
+            content: TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: label,
+                hintStyle: const TextStyle(color: Colors.white38),
+              ),
+              keyboardType:
+                  isDate ? TextInputType.datetime : TextInputType.text,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Отмена'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(controller.text),
+                child: const Text('Сохранить'),
+              ),
+            ],
+          ),
+    );
+
+    if (result != null && result.trim().isNotEmpty) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.updateUserProfile({fieldKey: result.trim()});
+      } catch (e) {
+        // Handle error
+      } finally {
+        await _loadUserProfile();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_userProfile == null) {
+      return const Center(
+        child: Text(
+          'Войдите, чтобы редактировать профиль',
+          style: TextStyle(color: Colors.white54, fontSize: 16),
+        ),
+      );
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          _ProfileInfoTile(
+            label: 'Фамилия',
+            value: _userProfile?['last_name'],
+            onEdit: () => _editField(context, 'last_name', 'Фамилия'),
+          ),
+          const SizedBox(height: 12),
+          _ProfileInfoTile(
+            label: 'Имя',
+            value: _userProfile?['first_name'],
+            onEdit: () => _editField(context, 'first_name', 'Имя'),
+          ),
+          const SizedBox(height: 12),
+          _ProfileInfoTile(
+            label: 'Дата рождения',
+            value: _userProfile?['birth_date'],
+            onEdit:
+                () => _editField(
+                  context,
+                  'birth_date',
+                  'Дата рождения',
+                  isDate: true,
+                ),
+          ),
+          const SizedBox(height: 12),
+          _ProfileInfoTile(
+            label: 'Email',
+            value: _userProfile?['email'],
+            onEdit: () {}, // Email editing is usually more complex
+          ),
+          const SizedBox(height: 12),
+          _ProfileInfoTile(
+            label: 'Телефон',
+            value: _userProfile?['phone'],
+            onEdit: () => _editField(context, 'phone', 'Телефон'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileInfoTile extends StatelessWidget {
+  final String label;
+  final String? value;
+  final VoidCallback onEdit;
+
+  const _ProfileInfoTile({
+    required this.label,
+    this.value,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF18181C),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white24, width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.white54, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value != null && value!.isNotEmpty ? value! : '-',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (label != 'Email')
+            TextButton(
+              onPressed: onEdit,
+              child: const Text(
+                'изменить',
+                style: TextStyle(color: Colors.white70, fontSize: 15),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class PasswordEditor extends StatefulWidget {
+  const PasswordEditor({Key? key}) : super(key: key);
+
+  @override
+  State<PasswordEditor> createState() => _PasswordEditorState();
+}
+
+class _PasswordEditorState extends State<PasswordEditor> {
+  final _newPasswordController = TextEditingController();
+  final _repeatPasswordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+  String? _errorMessage;
+  String? _successMessage;
+
+  Future<void> _changePassword() async {
+    setState(() {
+      _errorMessage = null;
+      _successMessage = null;
+    });
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
+      try {
+        await SupabaseService.updateUserPassword(_newPasswordController.text);
+        setState(() => _successMessage = 'Пароль успешно изменен!');
+        _newPasswordController.clear();
+        _repeatPasswordController.clear();
+      } catch (e) {
+        setState(() => _errorMessage = 'Ошибка: ${e.toString()}');
+      } finally {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        children: [
+          TextFormField(
+            controller: _newPasswordController,
+            obscureText: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              labelText: 'Новый пароль',
+              labelStyle: TextStyle(color: Colors.white54),
+            ),
+            validator: (value) {
+              if (value == null || value.length < 6) {
+                return 'Пароль должен быть не менее 6 символов';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _repeatPasswordController,
+            obscureText: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              labelText: 'Повторите пароль',
+              labelStyle: TextStyle(color: Colors.white54),
+            ),
+            validator: (value) {
+              if (value != _newPasswordController.text) {
+                return 'Пароли не совпадают';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 24),
+          if (_errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.red),
+              ),
+            ),
+          if (_successMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                _successMessage!,
+                style: const TextStyle(color: Colors.green),
+              ),
+            ),
+          ElevatedButton(
+            onPressed: _isLoading ? null : _changePassword,
+            child:
+                _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Сохранить'),
+          ),
+        ],
       ),
     );
   }

@@ -3,6 +3,8 @@ import 'dart:math';
 import '../services/supabase_service.dart';
 import 'package:intl/intl.dart';
 import '../models/filters.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'user_qr_bottom_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -21,12 +23,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'Профиль',
   ];
 
-  // Пример прогресса (0.0 - 1.0)
-  final double progress = 0.05; // 5%
-  final int userPoints = 500; // Текущее количество баллов пользователя
-  final int goalPoints = 10000; // Цель для перехода на 10%
+  // Удаляем старые переменные:
+  // final double progress = 0.05; // 5%
+  // final int userPoints = 500; // Текущее количество баллов пользователя
+  // final int goalPoints = 10000; // Цель для перехода на 10%
 
   int _profileContentIndex = 0; // 0 for info, 1 for password
+
+  // Новые переменные для баллов
+  int? allTimePoints;
+  int goalPoints = 10000;
+  String get cashbackPercent =>
+      (allTimePoints ?? 0) >= goalPoints ? '10%' : '5%';
+  double get progress =>
+      (allTimePoints ?? 0) >= goalPoints
+          ? 1.0
+          : (allTimePoints ?? 0) / goalPoints;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfilePoints();
+  }
+
+  Future<void> _loadProfilePoints() async {
+    final profile = await SupabaseService.getUserProfile();
+    setState(() {
+      allTimePoints = profile?['all_time_points'] ?? 0;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,18 +86,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       Positioned(
                         bottom: 12,
-                        child: Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.qr_code,
-                            color: Colors.white,
-                            size: 26,
+                        child: GestureDetector(
+                          onTap: () => showUserQRBottomSheet(context),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: const Icon(
+                              Icons.qr_code,
+                              color: Colors.white,
+                              size: 26,
+                            ),
                           ),
                         ),
                       ),
@@ -107,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                '${(progress * 100).round()}%',
+                                cashbackPercent,
                                 style: const TextStyle(
                                   color: Color(0xFF5B5BFF),
                                   fontWeight: FontWeight.bold,
@@ -116,79 +144,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            Text(
-                              goalPoints.toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 28,
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text(
+                                  goalPoints.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 28,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Переход на 10%',
+                                  style: TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Переход на 10%',
-                          style: TextStyle(color: Colors.white54, fontSize: 15),
                         ),
                         const SizedBox(height: 16),
                         // Прогресс-бар
                         SizedBox(
                           height: 38,
-                          child: Stack(
-                            alignment: Alignment.bottomLeft,
-                            children: [
-                              // Фоновая линия
-                              Container(
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: Colors.white12,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              // Прогресс
-                              FractionallySizedBox(
-                                widthFactor: progress.clamp(0.0, 1.0),
-                                child: Container(
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF5B5BFF),
-                                    borderRadius: BorderRadius.circular(8),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final barWidth = constraints.maxWidth;
+                              final dotPosition =
+                                  barWidth * progress.clamp(0.0, 1.0);
+                              return Stack(
+                                alignment: Alignment.bottomLeft,
+                                children: [
+                                  // Фоновая линия
+                                  Container(
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white12,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              // Точка и баллы пользователя
-                              Positioned(
-                                left:
-                                    (MediaQuery.of(context).size.width - 120) *
-                                    progress.clamp(0.0, 1.0),
-                                bottom: 0,
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      userPoints.toString(),
-                                      style: const TextStyle(
-                                        color: Color(0xFF5B5BFF),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    Container(
-                                      width: 18,
-                                      height: 18,
+                                  // Прогресс
+                                  FractionallySizedBox(
+                                    widthFactor: progress.clamp(0.0, 1.0),
+                                    child: Container(
+                                      height: 10,
                                       decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: Color(0xFF5B5BFF),
-                                          width: 3,
-                                        ),
+                                        color: const Color(0xFF5B5BFF),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                                  ),
+                                  // Точка и баллы пользователя
+                                  Positioned(
+                                    left:
+                                        dotPosition -
+                                        9, // 9 = половина ширины точки
+                                    bottom: 0,
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          (allTimePoints ?? 0).toString(),
+                                          style: const TextStyle(
+                                            color: Color(0xFF5B5BFF),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        Container(
+                                          width: 18,
+                                          height: 18,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Color(0xFF5B5BFF),
+                                              width: 3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -618,6 +661,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } else if (_selectedTab == 4) {
       return _buildProfileTab();
+    } else if (_selectedTab == 0) {
+      // Домой: объяснение партнерской программы
+      return SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'ваш уровень лояльности 5%',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 32,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 370,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    _LoyaltyCard(
+                      percent: '5%',
+                      title: 'товары и билеты',
+                      description:
+                          'Все новые участники программы лояльности попадают на уровень 5% и могут получать бонусами до 5% от суммы покупок',
+                    ),
+                    const SizedBox(width: 18),
+                    _LoyaltyCard(
+                      percent: '10%',
+                      title: 'товары и билеты',
+                      description:
+                          'Участники с уровнем лояльности 5%, накопившие 10 000 бонусов, автоматически попадают на уровень 10% и могут получать бонусами до 10% от суммы покупок',
+                    ),
+                    const SizedBox(width: 18),
+                    _LoyaltyCard(
+                      percent: '1 BYN = 100',
+                      title: '',
+                      description:
+                          'Бонусы начисляются на следующий день после приобретения товара или получения услуги',
+                      isByn: true,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              // YouTube video section
+              LoyaltyYoutubePlayer(),
+            ],
+          ),
+        ),
+      );
     } else {
       return Center(
         child:
@@ -1132,5 +1233,151 @@ class AvatarProgressPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant AvatarProgressPainter oldDelegate) {
     return oldDelegate.progress != progress;
+  }
+}
+
+class _LoyaltyCard extends StatelessWidget {
+  final String percent;
+  final String title;
+  final String description;
+  final bool isByn;
+  const _LoyaltyCard({
+    required this.percent,
+    required this.title,
+    required this.description,
+    this.isByn = false,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 280,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF18181C),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: Colors.white12, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (!isByn) ...[
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                percent,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 48,
+                ),
+              ),
+            ] else ...[
+              Icon(Icons.sync, color: Color(0xFF5B5BFF), size: 44),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Color(0xFF5B5BFF), width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  percent,
+                  style: const TextStyle(
+                    color: Color(0xFF5B5BFF),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 18),
+            Expanded(
+              child: Center(
+                child: Text(
+                  description,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 15,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 7,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// YouTube player widget for loyalty tab
+class LoyaltyYoutubePlayer extends StatefulWidget {
+  const LoyaltyYoutubePlayer({Key? key}) : super(key: key);
+
+  @override
+  State<LoyaltyYoutubePlayer> createState() => _LoyaltyYoutubePlayerState();
+}
+
+class _LoyaltyYoutubePlayerState extends State<LoyaltyYoutubePlayer> {
+  late YoutubePlayerController _controller;
+  final String videoId =
+      YoutubePlayer.convertUrlToId(
+        // Вставь сюда свою ссылку на видео
+        'https://www.youtube.com/watch?v=vXeW1qd7B7U&t=105s',
+      )!;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: YoutubePlayer(
+          controller: _controller,
+          showVideoProgressIndicator: true,
+          width: double.infinity,
+          aspectRatio: 16 / 9,
+        ),
+      ),
+    );
   }
 }

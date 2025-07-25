@@ -3,6 +3,7 @@ import '../models/movie.dart';
 import '../services/image_service.dart';
 import 'session_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class MovieDetailScreen extends StatelessWidget {
   final Movie movie;
@@ -17,17 +18,37 @@ class MovieDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Постер с затемнением и кнопкой play
               Stack(
                 children: [
                   SizedBox(
+                    width: MediaQuery.of(context).size.width,
                     height: 260,
-                    width: double.infinity,
-                    child: ImageService.getImage(
-                      movie.imageUrl,
-                      width: double.infinity,
-                      height: 260,
-                    ),
+                    child:
+                        movie.trailerUrl.isNotEmpty &&
+                                YoutubePlayer.convertUrlToId(
+                                      movie.trailerUrl,
+                                    ) !=
+                                    null
+                            ? YoutubePlayer(
+                              controller: YoutubePlayerController(
+                                initialVideoId:
+                                    YoutubePlayer.convertUrlToId(
+                                      movie.trailerUrl,
+                                    )!,
+                                flags: const YoutubePlayerFlags(
+                                  autoPlay: false,
+                                  mute: false,
+                                ),
+                              ),
+                              showVideoProgressIndicator: true,
+                              width: double.infinity,
+                              aspectRatio: 16 / 9,
+                            )
+                            : ImageService.getImage(
+                              movie.imageUrl,
+                              width: double.infinity,
+                              height: 260,
+                            ),
                   ),
                   Container(
                     height: 260,
@@ -47,7 +68,10 @@ class MovieDetailScreen extends StatelessWidget {
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ),
-                  if (movie.galleryUrls.isNotEmpty)
+                  if (movie.galleryUrls.isNotEmpty &&
+                      (movie.trailerUrl.isEmpty ||
+                          YoutubePlayer.convertUrlToId(movie.trailerUrl) ==
+                              null))
                     Positioned(
                       left: 0,
                       right: 0,

@@ -646,4 +646,29 @@ class SupabaseService {
     if (user == null) throw Exception("Пользователь не авторизован");
     await supabase.auth.updateUser(UserAttributes(password: newPassword));
   }
+
+  /// Начислить бонусы пользователю за заказ
+  static Future<void> addBonusPoints({
+    required String userId,
+    required double orderAmountByN,
+  }) async {
+    // Получаем профиль пользователя
+    final profile =
+        await supabase.from('profiles').select().eq('id', userId).single();
+    final int allTimePoints = profile['all_time_points'] ?? 0;
+    // Определяем уровень
+    final percent = allTimePoints >= 10000 ? 0.10 : 0.05;
+    // Сколько рублей начислить бонусами
+    final double bonusRub = orderAmountByN * percent;
+    // Сколько баллов начислить (1 BYN = 100 баллов)
+    final int bonusPoints = (bonusRub * 100).round();
+    // Обновляем профиль
+    await supabase
+        .from('profiles')
+        .update({
+          'all_time_points': allTimePoints + bonusPoints,
+          'current_points': (profile['current_points'] ?? 0) + bonusPoints,
+        })
+        .eq('id', userId);
+  }
 }

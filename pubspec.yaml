@@ -43,6 +43,8 @@ dependencies:
   url_launcher: ^6.2.5
   webview_flutter: ^4.7.0
   mask_text_input_formatter: ^2.5.0
+  youtube_player_flutter: ^9.1.1
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
@@ -104,3 +106,4 @@ flutter:
     - assets/images/blur.png
     - assets/images/recliner.svg
     - assets/images/loveSeatRecliner.svg
+    - assets/images/logo.png

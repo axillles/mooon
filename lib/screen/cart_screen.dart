@@ -642,7 +642,46 @@ class _CartSummary extends StatelessWidget {
             width: double.infinity,
             height: 54,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () async {
+                // Получаем сумму заказа
+                double price = 0.0;
+                final seatKeys =
+                    (booking['seats'] as List?)?.cast<String>() ?? [];
+                if (seatTypes != null && seats != null) {
+                  for (final seatKey in seatKeys) {
+                    final seat = seats!.firstWhere(
+                      (s) => ' {s.rowNumber}- {s.seatNumber}' == seatKey,
+                      orElse: () => seats!.first,
+                    );
+                    final seatType = seatTypes!.firstWhere(
+                      (t) => t.id == seat.seatTypeId,
+                      orElse: () => seatTypes!.first,
+                    );
+                    price += seatType.price ?? 0.0;
+                  }
+                } else {
+                  price = 16.0 * seatKeys.length;
+                }
+                // Получаем userId
+                final userId = await SupabaseService.getCurrentUserId();
+                // Начисляем бонусы
+                await SupabaseService.addBonusPoints(
+                  userId: userId,
+                  orderAmountByN: price,
+                );
+                // Показываем уведомление
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Бонусы начислены!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+                // (Опционально) очищаем корзину
+                // await SupabaseService.cancelBooking(booking['screening_id']);
+                // if (context.mounted) Navigator.of(context).pop();
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF6B7AFF),
                 shape: RoundedRectangleBorder(

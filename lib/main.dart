@@ -9,6 +9,8 @@ import 'dart:ui';
 import 'screen/auth_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+final GlobalKey<_MainScreenState> mainScreenKey = GlobalKey<_MainScreenState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseService.initialize();
@@ -163,26 +165,23 @@ class BookingTimerController extends ValueNotifier<BookingTimerState?> {
       // Получаем все активные бронирования для отслеживания изменений
       final now = DateTime.now().toUtc();
       final fiveMinAgo = now.subtract(const Duration(minutes: 5));
-      final bookings = await SupabaseService.supabase
+      final List<dynamic> bookings = await SupabaseService.supabase
           .from('bookings')
           .select()
           .filter('status', 'in', '("pending","confirmed")')
           .gte('booking_time', fiveMinAgo.toIso8601String());
+      // Группируем по screeningId для отслеживания изменений
+      final Map<int, List<Map<String, dynamic>>> bookingsByScreening = {};
+      for (final booking in bookings) {
+        final screeningId = booking['screening_id'] as int;
+        bookingsByScreening.putIfAbsent(screeningId, () => []).add(booking);
+      }
 
-      if (bookings is List) {
-        // Группируем по screeningId для отслеживания изменений
-        final Map<int, List<Map<String, dynamic>>> bookingsByScreening = {};
-        for (final booking in bookings) {
-          final screeningId = booking['screening_id'] as int;
-          bookingsByScreening.putIfAbsent(screeningId, () => []).add(booking);
-        }
-
-        // Уведомляем о изменениях в каждом сеансе
-        for (final screeningId in bookingsByScreening.keys) {
-          bookingChangedController.add(
-            screeningId,
-          ); // Используем тот же контроллер для уведомлений об изменениях
-        }
+      // Уведомляем о изменениях в каждом сеансе
+      for (final screeningId in bookingsByScreening.keys) {
+        bookingChangedController.add(
+          screeningId,
+        ); // Используем тот же контроллер для уведомлений об изменениях
       }
     } catch (e) {
       print('Ошибка при проверке изменений бронирований: $e');
@@ -192,20 +191,18 @@ class BookingTimerController extends ValueNotifier<BookingTimerState?> {
   Future<void> _updateActiveBookings() async {
     try {
       final userId = await SupabaseService.getDeviceId();
-      final bookings = await SupabaseService.supabase
+      final List<dynamic> bookings = await SupabaseService.supabase
           .from('bookings')
           .select()
           .eq('user_id', userId)
           .eq('status', 'pending');
 
       _activeBookings.clear();
-      if (bookings is List) {
-        for (final booking in bookings) {
-          final screeningId = booking['screening_id'] as int;
-          final bookingTime = DateTime.tryParse(booking['booking_time'] ?? '');
-          if (bookingTime != null) {
-            _activeBookings[screeningId] = bookingTime;
-          }
+      for (final booking in bookings) {
+        final screeningId = booking['screening_id'] as int;
+        final bookingTime = DateTime.tryParse(booking['booking_time'] ?? '');
+        if (bookingTime != null) {
+          _activeBookings[screeningId] = bookingTime;
         }
       }
     } catch (e) {
@@ -276,7 +273,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const MainScreen(),
+      home: MainScreen(key: mainScreenKey),
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return ValueListenableBuilder<BookingTimerState?>(
@@ -290,7 +287,7 @@ class MyApp extends StatelessWidget {
               mainAxisSize: MainAxisSize.max,
               children: [
                 BookingTimerHeader(
-                  movieTitle: state!.movieTitle,
+                  movieTitle: state.movieTitle,
                   remaining: remaining,
                 ),
                 Expanded(
@@ -326,6 +323,12 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  void switchToTab(int index) {
     setState(() {
       _selectedIndex = index;
     });

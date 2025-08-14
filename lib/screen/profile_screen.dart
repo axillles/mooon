@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import '../services/supabase_service.dart';
 import 'package:intl/intl.dart';
-import '../models/filters.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'user_qr_bottom_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final int initialTabIndex;
+  const ProfileScreen({super.key, this.initialTabIndex = 0});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -43,6 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedTab = widget.initialTabIndex;
     _loadProfilePoints();
   }
 

@@ -671,4 +671,44 @@ class SupabaseService {
         })
         .eq('id', userId);
   }
+
+  // --- Новости ---
+
+  /// Получить активные новости, отсортированные по приоритету и дате публикации
+  static Future<List<Map<String, dynamic>>> getActiveNews({
+    int limit = 10,
+  }) async {
+    try {
+      final response = await supabase
+          .from('news')
+          .select()
+          .eq('is_active', true)
+          .order('priority', ascending: false)
+          .order('published_at', ascending: false)
+          .limit(limit);
+
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Ошибка при получении новостей: $e');
+      return [];
+    }
+  }
+
+  /// Получить конкретную новость по ID
+  static Future<Map<String, dynamic>?> getNewsById(int newsId) async {
+    try {
+      final response =
+          await supabase
+              .from('news')
+              .select()
+              .eq('id', newsId)
+              .eq('is_active', true)
+              .single();
+
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      print('Ошибка при получении новости $newsId: $e');
+      return null;
+    }
+  }
 }

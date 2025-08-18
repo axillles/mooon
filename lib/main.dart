@@ -314,7 +314,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 1; // Афиша по умолчанию
+  int _selectedIndex = 0; // Home по умолчанию
 
   final List<Widget> _screens = [
     const HomeScreen(),

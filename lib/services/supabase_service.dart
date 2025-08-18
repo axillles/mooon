@@ -539,6 +539,67 @@ class SupabaseService {
     return result;
   }
 
+  /// Найти текущий сеанс пользователя, который идет прямо сейчас,
+  /// в зале с возможностью заказа еды (hall.food = true)
+  static Future<Map<String, dynamic>?> getCurrentFoodEligibleScreening() async {
+    try {
+      final userId = await getCurrentUserId();
+      final now = DateTime.now();
+      // Берем все билеты пользователя со статусами подтвержден/активен
+      final bookings = await supabase
+          .from('bookings')
+          .select()
+          .eq('user_id', userId)
+          .filter('status', 'in', '("confirmed","active")')
+          .order('booking_time', ascending: false);
+
+      for (final booking in bookings) {
+        final screeningId = booking['screening_id'] as int;
+        final screeningList = await supabase
+            .from('screenings')
+            .select()
+            .eq('id', screeningId);
+        if (screeningList is! List || screeningList.isEmpty) continue;
+        final screening = screeningList.first as Map<String, dynamic>;
+
+        final movieList = await supabase
+            .from('movies')
+            .select()
+            .eq('id', screening['movie_id']);
+        if (movieList is! List || movieList.isEmpty) continue;
+        final movie = movieList.first as Map<String, dynamic>;
+
+        final hallList = await supabase
+            .from('halls')
+            .select()
+            .eq('id', screening['hall_id']);
+        if (hallList is! List || hallList.isEmpty) continue;
+        final hall = hallList.first as Map<String, dynamic>;
+
+        final bool hallHasFood = (hall['food'] == true);
+        if (!hallHasFood) continue;
+
+        final startTime = DateTime.parse(screening['start_time']);
+        final durationMinutes = (movie['duration_minutes'] as int?) ?? 0;
+        if (durationMinutes <= 0) continue;
+        final endTime = startTime.add(Duration(minutes: durationMinutes));
+
+        if (now.isAfter(startTime) && now.isBefore(endTime)) {
+          return {
+            'booking': booking,
+            'screening': screening,
+            'movie': movie,
+            'hall': hall,
+          };
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Ошибка getCurrentFoodEligibleScreening: $e');
+      return null;
+    }
+  }
+
   // Получить историю билетов пользователя (все бронирования)
   static Future<List<Map<String, dynamic>>> getUserBookingHistory() async {
     final userId = await getCurrentUserId();

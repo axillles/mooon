@@ -9,6 +9,7 @@ import 'user_qr_bottom_sheet.dart';
 import 'user_tickets_bottom_sheet.dart';
 import 'news_detail_screen.dart';
 import '../main.dart' show mainScreenKey;
+import 'food_menu_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -82,6 +83,8 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
           ),
+          // Баннер заказа еды во время сеанса (если доступно)
+          const SliverToBoxAdapter(child: _FoodBanner()),
           // Новости
           const SliverToBoxAdapter(child: _NewsSection()),
           // Мини-афиша ближайших сеансов
@@ -182,6 +185,100 @@ class _NewsSection extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _FoodBanner extends StatefulWidget {
+  const _FoodBanner();
+
+  @override
+  State<_FoodBanner> createState() => _FoodBannerState();
+}
+
+class _FoodBannerState extends State<_FoodBanner> {
+  Map<String, dynamic>? _data;
+  bool _loading = true;
+  DateTime _lastFetch = DateTime.fromMillisecondsSinceEpoch(0);
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    // Обновляем не чаще, чем раз в 15 секунд
+    final now = DateTime.now();
+    if (now.difference(_lastFetch).inSeconds < 15 && !_loading) return;
+    setState(() => _loading = true);
+    final data = await SupabaseService.getCurrentFoodEligibleScreening();
+    if (!mounted) return;
+    setState(() {
+      _data = data;
+      _loading = false;
+      _lastFetch = now;
+    });
+    // Планируем следующее обновление через 30 секунд
+    Future.delayed(const Duration(seconds: 30), () {
+      if (mounted) _refresh();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading && _data == null) return const SizedBox.shrink();
+    final data = _data;
+    if (data == null) return const SizedBox.shrink();
+    final movie = data['movie'];
+    final hall = data['hall'];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const FoodMenuScreen()));
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A2A34),
+            border: Border.all(color: Colors.white12, width: 1.5),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Icon(Icons.fastfood, color: Colors.white, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Доступен заказ в зал',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${movie?['title'] ?? ''} • ${hall?['name'] ?? ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Icon(Icons.chevron_right, color: Colors.white54),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

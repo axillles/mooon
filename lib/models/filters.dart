@@ -68,6 +68,7 @@ class Hall {
   final String name;
   final int? capacity;
   final String? technology;
+  final bool? food;
 
   Hall({
     required this.id,
@@ -75,6 +76,7 @@ class Hall {
     required this.name,
     this.capacity,
     this.technology,
+    this.food,
   });
 
   factory Hall.fromJson(Map<String, dynamic> json) {
@@ -84,6 +86,7 @@ class Hall {
       name: json['name'] as String,
       capacity: json['capacity'] as int?,
       technology: json['technology'] as String?,
+      food: json['food'] as bool?,
     );
   }
 }

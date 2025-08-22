@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/movie.dart';
 import '../models/filters.dart';
+import '../models/food.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../main.dart'; // Для доступа к bookingTimerController
@@ -598,6 +599,261 @@ class SupabaseService {
       print('Ошибка getCurrentFoodEligibleScreening: $e');
       return null;
     }
+  }
+
+  // --- ЕДА / МЕНЮ ---
+
+  /// Получить категории и блюда для зала (если в зале есть привязанные позиции),
+  /// иначе для кинотеатра, иначе общие активные блюда
+  static Future<Map<String, List<FoodItem>>> getFoodMenu() async {
+    try {
+      final resp = await supabase.from('foods').select().eq('is_active', true);
+      final items = (resp as List).map((e) => FoodItem.fromJson(e)).toList();
+
+      print('getFoodMenu: найдено ${items.length} активных товаров');
+      for (final item in items) {
+        print('  - ${item.name} (category_id: ${item.categoryId})');
+      }
+
+      // Получаем категории по id из items
+      final categoryIds =
+          items.map((e) => e.categoryId).whereType<int>().toSet().toList();
+      print('getFoodMenu: уникальные category_ids: $categoryIds');
+
+      final categories = <int, FoodCategory>{};
+      if (categoryIds.isNotEmpty) {
+        final idsStr = '(' + categoryIds.join(',') + ')';
+        final resp = await supabase
+            .from('food_categories')
+            .select()
+            .filter('id', 'in', idsStr)
+            .eq('is_active', true)
+            .order('position');
+        for (final c in (resp as List)) {
+          final cat = FoodCategory.fromJson(c);
+          categories[cat.id] = cat;
+          print('  - категория: ${cat.name} (id: ${cat.id})');
+        }
+      }
+
+      // Группируем по категории (без категории — ключ 0)
+      final map = <String, List<FoodItem>>{};
+      for (final item in items) {
+        final catName =
+            item.categoryId != null && categories[item.categoryId!] != null
+                ? categories[item.categoryId!]!.name
+                : 'Прочее';
+        map.putIfAbsent(catName, () => []).add(item);
+        print('  - ${item.name} -> категория: $catName');
+      }
+
+      print('getFoodMenu: итоговые категории: ${map.keys.toList()}');
+      return map;
+    } catch (e) {
+      print('Ошибка getFoodMenu: $e');
+      return {};
+    }
+  }
+
+  /// Получить или создать черновик заказа для пользователя под текущий сеанс
+  static Future<FoodOrder> getOrCreateDraftFoodOrder({
+    required int screeningId,
+    required String seatRow,
+    required int seatNumber,
+  }) async {
+    final userId = await getCurrentUserId();
+    // Пытаемся найти существующий draft
+    final existing =
+        await supabase
+            .from('food_orders')
+            .select()
+            .eq('user_id', userId)
+            .eq('screening_id', screeningId)
+            .eq('status', 'draft')
+            .maybeSingle();
+
+    if (existing != null) {
+      // при необходимости обновим ряд/место
+      if (existing['seat_row'] == null || existing['seat_number'] == null) {
+        await supabase
+            .from('food_orders')
+            .update({'seat_row': seatRow, 'seat_number': seatNumber})
+            .eq('id', existing['id']);
+        final updated =
+            await supabase
+                .from('food_orders')
+                .select()
+                .eq('id', existing['id'])
+                .single();
+        return FoodOrder.fromJson(updated);
+      }
+      return FoodOrder.fromJson(existing);
+    }
+
+    final inserted =
+        await supabase
+            .from('food_orders')
+            .insert({
+              'user_id': userId,
+              'screening_id': screeningId,
+              'seat_row': seatRow,
+              'seat_number': seatNumber,
+              'status': 'draft',
+              'total_amount': 0,
+            })
+            .select()
+            .single();
+    return FoodOrder.fromJson(inserted);
+  }
+
+  /// Добавить блюдо в черновик заказа (с инкрементом количества), пересчитать total
+  static Future<void> addFoodToOrder({
+    required int orderId,
+    required int foodId,
+    int quantity = 1,
+    double? unitPriceOverride,
+  }) async {
+    // Всегда создаём НОВУЮ позицию (не стакуем)
+    final food =
+        await supabase.from('foods').select().eq('id', foodId).single();
+    final unitPrice = unitPriceOverride ?? (food['price'] as num).toDouble();
+
+    await supabase.from('food_order_items').insert({
+      'order_id': orderId,
+      'food_id': foodId,
+      'quantity': quantity,
+      'unit_price': unitPrice,
+    });
+
+    // Пересчёт total_amount
+    final items = await supabase
+        .from('food_order_items')
+        .select()
+        .eq('order_id', orderId);
+    double total = 0;
+    for (final it in (items as List)) {
+      total += (it['quantity'] as int) * (it['unit_price'] as num).toDouble();
+    }
+    await supabase
+        .from('food_orders')
+        .update({'total_amount': total})
+        .eq('id', orderId);
+  }
+
+  static Future<void> deleteOrderItemById({
+    required int orderItemId,
+    required int orderId,
+  }) async {
+    await supabase
+        .from('food_order_items')
+        .delete()
+        .eq('id', orderItemId)
+        .eq('order_id', orderId);
+
+    final items = await supabase
+        .from('food_order_items')
+        .select()
+        .eq('order_id', orderId);
+    double total = 0;
+    for (final it in (items as List)) {
+      total += (it['quantity'] as int) * (it['unit_price'] as num).toDouble();
+    }
+    await supabase
+        .from('food_orders')
+        .update({'total_amount': total})
+        .eq('id', orderId);
+  }
+
+  static Future<List<Map<String, dynamic>>> getOrderItems(int orderId) async {
+    final resp = await supabase
+        .from('food_order_items')
+        .select('*, foods(name, image_url, size_prices)')
+        .eq('order_id', orderId)
+        .order('id');
+
+    return (resp as List).map((e) {
+      final item = FoodOrderItem.fromJson(e);
+      final food = (e['foods'] as Map<String, dynamic>?) ?? {};
+      final foodName = food['name'] as String? ?? 'Неизвестный товар';
+      final imageUrl = food['image_url'] as String?;
+      final sizePrices = food['size_prices'];
+      return {
+        'item': item,
+        'name': foodName,
+        'imageUrl': imageUrl,
+        'sizePrices': sizePrices,
+      };
+    }).toList();
+  }
+
+  static Future<void> setFoodItemQuantity({
+    required int orderId,
+    required int foodId,
+    required int quantity,
+  }) async {
+    if (quantity <= 0) {
+      await removeFoodFromOrder(orderId: orderId, foodId: foodId);
+      return;
+    }
+    await supabase
+        .from('food_order_items')
+        .update({'quantity': quantity})
+        .eq('order_id', orderId)
+        .eq('food_id', foodId);
+    final items = await supabase
+        .from('food_order_items')
+        .select()
+        .eq('order_id', orderId);
+    double total = 0;
+    for (final it in (items as List)) {
+      total += (it['quantity'] as int) * (it['unit_price'] as num).toDouble();
+    }
+    await supabase
+        .from('food_orders')
+        .update({'total_amount': total})
+        .eq('id', orderId);
+  }
+
+  static Future<void> removeFoodFromOrder({
+    required int orderId,
+    required int foodId,
+  }) async {
+    await supabase
+        .from('food_order_items')
+        .delete()
+        .eq('order_id', orderId)
+        .eq('food_id', foodId);
+    final items = await supabase
+        .from('food_order_items')
+        .select()
+        .eq('order_id', orderId);
+    double total = 0;
+    for (final it in (items as List)) {
+      total += (it['quantity'] as int) * (it['unit_price'] as num).toDouble();
+    }
+    await supabase
+        .from('food_orders')
+        .update({'total_amount': total})
+        .eq('id', orderId);
+  }
+
+  static Future<void> updateFoodOrderSeat({
+    required int orderId,
+    required String seatRow,
+    required int seatNumber,
+  }) async {
+    await supabase
+        .from('food_orders')
+        .update({'seat_row': seatRow, 'seat_number': seatNumber})
+        .eq('id', orderId);
+  }
+
+  static Future<void> clearFoodOrder(int orderId) async {
+    await supabase.from('food_order_items').delete().eq('order_id', orderId);
+    await supabase
+        .from('food_orders')
+        .update({'total_amount': 0})
+        .eq('id', orderId);
   }
 
   // Получить историю билетов пользователя (все бронирования)

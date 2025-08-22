@@ -232,13 +232,37 @@ class _FoodBannerState extends State<_FoodBanner> {
     if (data == null) return const SizedBox.shrink();
     final movie = data['movie'];
     final hall = data['hall'];
+    final screening = data['screening'];
+    final booking = data['booking'];
+    String? seatRow;
+    int? seatNumber;
+    try {
+      final seats = booking?['seats'];
+      if (seats is List && seats.isNotEmpty) {
+        final first = seats.first;
+        if (first is String && first.contains('-')) {
+          final parts = first.split('-');
+          if (parts.length == 2) {
+            seatRow = parts[0];
+            seatNumber = int.tryParse(parts[1]);
+          }
+        }
+      }
+    } catch (_) {}
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: GestureDetector(
         onTap: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const FoodMenuScreen()));
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder:
+                  (_) => FoodMenuScreen(
+                    screeningId: screening?['id'] as int?,
+                    seatRow: seatRow,
+                    seatNumber: seatNumber,
+                  ),
+            ),
+          );
         },
         child: Container(
           decoration: BoxDecoration(
